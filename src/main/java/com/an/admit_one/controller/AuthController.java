@@ -1,13 +1,16 @@
 package com.an.admit_one.controller;
 
+import com.an.admit_one.dto.request.LoginRequest;
 import com.an.admit_one.dto.request.RegisterRequest;
 import com.an.admit_one.dto.request.ResendOtpRequest;
 import com.an.admit_one.dto.request.VerifyEmailRequest;
 import com.an.admit_one.dto.response.AuthResponse;
+import com.an.admit_one.dto.response.LoginResponse;
 import com.an.admit_one.dto.response.MessageResponse;
 import com.an.admit_one.dto.response.ResendOtpResponse;
 import com.an.admit_one.service.AuthService;
 
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -55,5 +58,16 @@ public class AuthController {
         return ResponseEntity.ok(
                 new ResendOtpResponse("Đã gửi lại mã xác minh", otpExpiresAt)
         );
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<LoginResponse> login(
+            @Valid @RequestBody LoginRequest request,
+            HttpServletResponse response
+    ) {
+        LoginResponse loginResponse =
+                authService.login(request, response);
+
+        return ResponseEntity.ok(loginResponse);
     }
 }

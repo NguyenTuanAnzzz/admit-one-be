@@ -1,9 +1,11 @@
 package com.an.admit_one.service;
 
+import com.an.admit_one.dto.request.LoginRequest;
 import com.an.admit_one.dto.request.RegisterRequest;
 import com.an.admit_one.dto.request.ResendOtpRequest;
 import com.an.admit_one.dto.request.VerifyEmailRequest;
 import com.an.admit_one.dto.response.AuthResponse;
+import com.an.admit_one.dto.response.LoginResponse;
 import com.an.admit_one.entity.Otp;
 import com.an.admit_one.entity.User;
 import com.an.admit_one.enums.OtpType;
@@ -12,9 +14,16 @@ import com.an.admit_one.exception.AppException;
 import com.an.admit_one.repository.AuthRepository;
 
 import com.an.admit_one.repository.OtpRepository;
+import com.an.admit_one.security.UserPrincipal;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +47,12 @@ public class AuthService {
 
     @Autowired
     private OtpRepository otpRepository;
+
+    @Autowired
+    private JwtService jwtService;
+
+    @Autowired
+    private AuthenticationManager authenticationManager;
 
     private String generateOtp() {
         String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -244,5 +259,50 @@ public class AuthService {
         );
 
         return otp.getExpiresAt();
+    }
+
+    public LoginResponse login(
+            @Valid LoginRequest request,
+            HttpServletResponse response
+    ) {
+        Authentication authentication =
+                authenticationManager.authenticate(
+                        new UsernamePasswordAuthenticationToken(
+                                request.getEmail().trim().toLowerCase(Locale.ROOT),
+                                request.getPassword()
+                        )
+                );
+
+        UserPrincipal userPrincipal =
+                (UserPrincipal) authentication.getPrincipal();
+
+        if (userPrincipal.getUser().getEmailVerifiedAt() == null) {
+            throw new AppException(
+                    HttpStatus.FORBIDDEN,
+                    "Email chưa được xác minh"
+            );
+        }
+
+        String accessToken =
+                jwtService.generateAccessToken(userPrincipal);
+
+        String refreshToken =
+                jwtService.generateRefreshToken(userPrincipal);
+
+        ResponseCookie refreshCookie = ResponseCookie
+                .from("refreshToken", refreshToken)
+                .httpOnly(true)
+                .secure(false) // true khi chạy HTTPS
+                .sameSite("Lax")
+                .path("/api/auth/refresh")
+                .maxAge(7 * 24 * 60 * 60)
+                .build();
+
+        response.addHeader(
+                HttpHeaders.SET_COOKIE,
+                refreshCookie.toString()
+        );
+
+        return new LoginResponse(accessToken);
     }
 }
