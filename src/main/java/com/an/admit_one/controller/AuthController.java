@@ -1,7 +1,9 @@
 package com.an.admit_one.controller;
 
 import com.an.admit_one.dto.request.RegisterRequest;
+import com.an.admit_one.dto.request.VerifyEmailRequest;
 import com.an.admit_one.dto.response.AuthResponse;
+import com.an.admit_one.dto.response.MessageResponse;
 import com.an.admit_one.service.AuthService;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,5 +29,16 @@ public class AuthController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(response);
+    }
+
+    @PostMapping("/verify-email")
+    public ResponseEntity<MessageResponse> verifyEmail(
+            @Valid @RequestBody VerifyEmailRequest request
+    ) {
+        authService.verifyEmail(request);
+
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(new MessageResponse("Xác minh email thành công"));
     }
 }

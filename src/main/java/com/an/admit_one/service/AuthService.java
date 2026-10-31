@@ -1,6 +1,7 @@
 package com.an.admit_one.service;
 
 import com.an.admit_one.dto.request.RegisterRequest;
+import com.an.admit_one.dto.request.VerifyEmailRequest;
 import com.an.admit_one.dto.response.AuthResponse;
 import com.an.admit_one.entity.Otp;
 import com.an.admit_one.entity.User;
@@ -10,6 +11,7 @@ import com.an.admit_one.exception.AppException;
 import com.an.admit_one.repository.AuthRepository;
 
 import com.an.admit_one.repository.OtpRepository;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -55,7 +57,7 @@ public class AuthService {
                 .trim()
                 .toLowerCase(Locale.ROOT);
 
-        if (authRepository.existsByEmailIgnoreCase(email)) {
+        if (authRepository.existsByEmail(email)) {
             throw new AppException(
                     HttpStatus.CONFLICT,
                     "Email đã được đăng ký"
@@ -120,5 +122,54 @@ public class AuthService {
                 savedUser.getRole(),
                 null
         );
+    }
+
+    @Transactional
+    public void verifyEmail(@Valid VerifyEmailRequest request) {
+
+        // Chuẩn hóa giống lúc đăng ký: email lưu viết thường, mã OTP chỉ có chữ hoa
+        String email = request.getEmail()
+                .trim()
+                .toLowerCase(Locale.ROOT);
+        String code = request.getCode()
+                .trim()
+                .toUpperCase(Locale.ROOT);
+
+        User user = authRepository.findByEmail(email)
+                .orElseThrow(() -> new AppException(
+                        HttpStatus.BAD_REQUEST,
+                        "Email không tồn tại"
+                ));
+
+        if (user.getEmailVerifiedAt() != null) {
+            throw new AppException(
+                    HttpStatus.BAD_REQUEST,
+                    "Email đã được xác minh"
+            );
+        }
+
+        Otp otp = otpRepository
+                .findByUserIdAndCodeAndTypeAndUsedFalse(
+                        user.getId(),
+                        code,
+                        OtpType.VERIFY_EMAIL
+                )
+                .orElseThrow(() -> new AppException(
+                        HttpStatus.BAD_REQUEST,
+                        "Mã xác minh không đúng"
+                ));
+
+        if (otp.getExpiresAt().isBefore(Instant.now())) {
+            throw new AppException(
+                    HttpStatus.BAD_REQUEST,
+                    "Mã xác minh đã hết hạn"
+            );
+        }
+
+        otp.setUsed(true);
+        otpRepository.save(otp);
+
+        user.setEmailVerifiedAt(Instant.now());
+        authRepository.save(user);
     }
 }

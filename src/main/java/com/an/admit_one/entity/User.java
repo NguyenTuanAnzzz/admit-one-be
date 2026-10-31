@@ -41,6 +41,9 @@ public class User {
     @Column(nullable = false, length = 20)
     private UserRole role = UserRole.CUSTOMER;
 
+    @Column
+    private Instant emailVerifiedAt;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
