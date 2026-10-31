@@ -98,7 +98,7 @@ public class AuthService {
         otp.setUserId(savedUser.getId());
         otp.setCode(otpCode);
         otp.setType(OtpType.VERIFY_EMAIL);
-        otp.setExpiresAt(Instant.now().plusSeconds(15 * 60));
+        otp.setExpiresAt(Instant.now().plusSeconds(EmailService.OTP_VALID_MINUTES * 60L));
         otp.setUsed(false);
 
         otpRepository.save(otp);
@@ -120,7 +120,8 @@ public class AuthService {
                 savedUser.getEmail(),
                 savedUser.getPhone(),
                 savedUser.getRole(),
-                null
+                null,
+                otp.getExpiresAt()
         );
     }
 

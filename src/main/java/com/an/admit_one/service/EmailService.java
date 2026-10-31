@@ -16,7 +16,8 @@ import java.nio.charset.StandardCharsets;
 @Service
 public class EmailService {
 
-    private static final int OTP_VALID_MINUTES = 15;
+    // Thời hạn mã OTP, AuthService dùng chung hằng số này khi đặt expiresAt
+    public static final int OTP_VALID_MINUTES = 1;
 
     @Autowired
     private JavaMailSender mailSender;

@@ -26,4 +26,7 @@ public class AuthResponse {
     private UserRole role;
 
     private Instant emailVerifiedAt;
+
+    // Lúc mã OTP xác minh email hết hạn, FE dùng để đếm ngược
+    private Instant otpExpiresAt;
 }
