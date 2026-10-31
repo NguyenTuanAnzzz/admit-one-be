@@ -1,6 +1,7 @@
 package com.an.admit_one.service;
 
 import com.an.admit_one.dto.request.RegisterRequest;
+import com.an.admit_one.dto.request.ResendOtpRequest;
 import com.an.admit_one.dto.request.VerifyEmailRequest;
 import com.an.admit_one.dto.response.AuthResponse;
 import com.an.admit_one.entity.Otp;
@@ -57,28 +58,41 @@ public class AuthService {
                 .trim()
                 .toLowerCase(Locale.ROOT);
 
-        if (authRepository.existsByEmail(email)) {
+
+        User user = authRepository.findByEmail(email).orElse(null);
+
+        if (user != null && user.getEmailVerifiedAt() != null) {
             throw new AppException(
                     HttpStatus.CONFLICT,
                     "Email đã được đăng ký"
             );
         }
+
+        if (user == null) {
+            user = new User();
+        }
+
         String phone = request.getPhone();
 
         if (phone != null && !phone.isBlank()) {
             phone = phone.trim();
 
-            if (authRepository.existsByPhone(phone)) {
-                throw new AppException(
-                        HttpStatus.CONFLICT,
-                        "Số điện thoại đã được đăng ký"
-                );
+            User phoneOwner = authRepository.findByPhone(phone).orElse(null);
+
+            if (phoneOwner != null && !phoneOwner.getId().equals(user.getId())) {
+                if (phoneOwner.getEmailVerifiedAt() != null) {
+                    throw new AppException(
+                            HttpStatus.CONFLICT,
+                            "Số điện thoại đã được đăng ký"
+                    );
+                }
+
+                phoneOwner.setPhone(null);
+                authRepository.saveAndFlush(phoneOwner);
             }
         } else {
             phone = null;
         }
-
-        User user = new User();
 
         user.setFullName(request.getFullName().trim());
         user.setEmail(email);
@@ -91,6 +105,11 @@ public class AuthService {
         user.setRole(UserRole.CUSTOMER);
 
         User savedUser = authRepository.save(user);
+
+        otpRepository.deleteAllByUserIdAndTypeAndUsedFalse(
+                savedUser.getId(),
+                OtpType.VERIFY_EMAIL
+        );
 
         String otpCode = generateOtp();
 
@@ -128,7 +147,6 @@ public class AuthService {
     @Transactional
     public void verifyEmail(@Valid VerifyEmailRequest request) {
 
-        // Chuẩn hóa giống lúc đăng ký: email lưu viết thường, mã OTP chỉ có chữ hoa
         String email = request.getEmail()
                 .trim()
                 .toLowerCase(Locale.ROOT);
@@ -167,10 +185,64 @@ public class AuthService {
             );
         }
 
-        otp.setUsed(true);
-        otpRepository.save(otp);
+        otpRepository.delete(otp);
 
         user.setEmailVerifiedAt(Instant.now());
         authRepository.save(user);
+    }
+
+    @Transactional
+    public Instant resendOtp(@Valid ResendOtpRequest request) {
+
+        String email = request.getEmail()
+                .trim()
+                .toLowerCase(Locale.ROOT);
+
+        User user = authRepository.findByEmail(email)
+                .orElseThrow(() -> new AppException(
+                        HttpStatus.BAD_REQUEST,
+                        "Email không tồn tại"
+                ));
+
+        if (user.getEmailVerifiedAt() != null) {
+            throw new AppException(
+                    HttpStatus.BAD_REQUEST,
+                    "Email đã được xác minh"
+            );
+        }
+        if (otpRepository.existsByUserIdAndTypeAndUsedFalseAndExpiresAtAfter(
+                user.getId(),
+                OtpType.VERIFY_EMAIL,
+                Instant.now()
+        )) {
+            throw new AppException(
+                    HttpStatus.TOO_MANY_REQUESTS,
+                    "Mã cũ vẫn còn hiệu lực, vui lòng chờ mã hết hạn rồi gửi lại"
+            );
+        }
+
+        otpRepository.deleteAllByUserIdAndTypeAndUsedFalse(
+                user.getId(),
+                OtpType.VERIFY_EMAIL
+        );
+
+        String otpCode = generateOtp();
+
+        Otp otp = new Otp();
+        otp.setUserId(user.getId());
+        otp.setCode(otpCode);
+        otp.setType(OtpType.VERIFY_EMAIL);
+        otp.setExpiresAt(Instant.now().plusSeconds(EmailService.OTP_VALID_MINUTES * 60L));
+        otp.setUsed(false);
+
+        otpRepository.save(otp);
+
+        emailService.sendOtpEmail(
+                user.getEmail(),
+                otpCode,
+                OtpType.VERIFY_EMAIL
+        );
+
+        return otp.getExpiresAt();
     }
 }

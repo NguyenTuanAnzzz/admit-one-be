@@ -4,6 +4,7 @@ import com.an.admit_one.entity.Otp;
 import com.an.admit_one.enums.OtpType;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -12,6 +13,17 @@ public interface OtpRepository extends JpaRepository<Otp, UUID> {
     Optional<Otp> findByUserIdAndCodeAndTypeAndUsedFalse(
             UUID userId,
             String code,
+            OtpType type
+    );
+
+    boolean existsByUserIdAndTypeAndUsedFalseAndExpiresAtAfter(
+            UUID userId,
+            OtpType type,
+            Instant time
+    );
+
+    void deleteAllByUserIdAndTypeAndUsedFalse(
+            UUID userId,
             OtpType type
     );
 }
