@@ -358,4 +358,22 @@ public class AuthService {
         }
     }
 
+    public void logout(HttpServletResponse response) {
+        // Ghi đè cookie cũ bằng cookie rỗng, maxAge 0 để trình duyệt xoá.
+        // name và path phải giống hệt lúc login, khác path là trình duyệt coi như cookie khác
+        ResponseCookie clearCookie = ResponseCookie
+                .from("refreshToken", "")
+                .httpOnly(true)
+                .secure(false) // true khi chạy HTTPS
+                .sameSite("Lax")
+                .path("/api/auth/refresh")
+                .maxAge(0)
+                .build();
+
+        response.addHeader(
+                HttpHeaders.SET_COOKIE,
+                clearCookie.toString()
+        );
+    }
+
 }

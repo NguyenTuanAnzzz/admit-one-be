@@ -79,4 +79,15 @@ public class AuthController {
 
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/logout")
+    public ResponseEntity<MessageResponse> logout(
+            HttpServletResponse response
+    ) {
+        authService.logout(response);
+
+        return ResponseEntity.ok(
+                new MessageResponse("Đăng xuất thành công")
+        );
+    }
 }
