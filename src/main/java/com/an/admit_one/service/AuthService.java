@@ -54,6 +54,9 @@ public class AuthService {
     @Autowired
     private AuthenticationManager authenticationManager;
 
+    @Autowired
+    private CustomerUserDetailsService customerUserDetailsService;
+
     private String generateOtp() {
         String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         SecureRandom random = new SecureRandom();
@@ -289,14 +292,19 @@ public class AuthService {
         String refreshToken =
                 jwtService.generateRefreshToken(userPrincipal);
 
-        ResponseCookie refreshCookie = ResponseCookie
+        ResponseCookie.ResponseCookieBuilder cookieBuilder = ResponseCookie
                 .from("refreshToken", refreshToken)
                 .httpOnly(true)
                 .secure(false) // true khi chạy HTTPS
                 .sameSite("Lax")
-                .path("/api/auth/refresh")
-                .maxAge(7 * 24 * 60 * 60)
-                .build();
+                .path("/api/auth/refresh");
+
+        // Ghi nhớ đăng nhập: cookie sống 7 ngày. Không ghi nhớ: cookie phiên, đóng trình duyệt là mất
+        if (request.isRememberMe()) {
+            cookieBuilder.maxAge(7 * 24 * 60 * 60);
+        }
+
+        ResponseCookie refreshCookie = cookieBuilder.build();
 
         response.addHeader(
                 HttpHeaders.SET_COOKIE,
@@ -305,4 +313,49 @@ public class AuthService {
 
         return new LoginResponse(accessToken);
     }
+
+    public LoginResponse refresh(String refreshToken) {
+        if (refreshToken == null || refreshToken.isBlank()) {
+            throw new AppException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Refresh token không tồn tại"
+            );
+        }
+
+        try {
+            if (!"REFRESH".equals(jwtService.extractTokenType(refreshToken))) {
+                throw new AppException(
+                        HttpStatus.UNAUTHORIZED,
+                        "Token không phải refresh token"
+                );
+            }
+
+            String email = jwtService.extractUsername(refreshToken);
+
+            UserPrincipal userPrincipal =
+                    (UserPrincipal) customerUserDetailsService
+                            .loadUserByUsername(email);
+
+            if (!jwtService.isTokenValid(refreshToken, userPrincipal)) {
+                throw new AppException(
+                        HttpStatus.UNAUTHORIZED,
+                        "Refresh token không hợp lệ hoặc đã hết hạn"
+                );
+            }
+
+            String accessToken =
+                    jwtService.generateAccessToken(userPrincipal);
+
+            return new LoginResponse(accessToken);
+
+        } catch (AppException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new AppException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Refresh token không hợp lệ hoặc đã hết hạn"
+            );
+        }
+    }
+
 }

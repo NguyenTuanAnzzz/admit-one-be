@@ -70,4 +70,13 @@ public class AuthController {
 
         return ResponseEntity.ok(loginResponse);
     }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<LoginResponse> refresh(
+            @CookieValue(value = "refreshToken", required = false) String refreshToken
+    ) {
+        LoginResponse response = authService.refresh(refreshToken);
+
+        return ResponseEntity.ok(response);
+    }
 }
