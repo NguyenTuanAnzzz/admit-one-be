@@ -53,6 +53,13 @@ public final class EventSpecifications {
         };
     }
 
+    // Khách chỉ thấy sự kiện đã công bố và còn hiệu lực: bỏ bản nháp và sự kiện đã huỷ
+    public static Specification<Event> visibleToCustomers() {
+        return (root, query, cb) -> root.get("status").in(PUBLIC_STATUSES);
+    }
+
+    public static final List<EventStatus> PUBLIC_STATUSES = List.of(EventStatus.UPCOMING, EventStatus.ON_SALE, EventStatus.SOLD_OUT);
+
     // field >= from và field <= to, đầu nào null thì bỏ đầu đó
     private static void addRange(List<Predicate> conditions, CriteriaBuilder cb, Root<Event> root, String field, Instant from, Instant to) {
         if (from != null) {

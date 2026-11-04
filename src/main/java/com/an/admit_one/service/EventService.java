@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -47,6 +48,15 @@ public class EventService {
     // Chi tiết một sự kiện cho admin (có cả bản nháp), để điền sẵn form sửa
     public EventDetailResponse getForAdmin(UUID id) {
         return toDetail(findOrThrow(id));
+    }
+
+    // Chi tiết cho khách. Bản nháp trả 404 như không tồn tại; sự kiện đã huỷ vẫn cho xem để khách đã mua vé biết
+    public EventDetailResponse getForPublic(UUID id) {
+        Event event = findOrThrow(id);
+        if (event.getStatus() == EventStatus.DRAFT) {
+            throw new AppException(HttpStatus.NOT_FOUND, "Không tìm thấy sự kiện");
+        }
+        return toDetail(event);
     }
 
     // Sửa thông tin sự kiện. Sửa được ở mọi trạng thái (đổi mô tả, poster khi đang bán là bình thường).
@@ -173,6 +183,37 @@ public class EventService {
             Instant saleFrom, Instant saleTo,
             int page, int size, String sort
     ) {
+        validateSearch(q, startsFrom, startsTo, saleFrom, saleTo);
+
+        return searchPage(
+                EventSpecifications.filter(status, q, startsFrom, startsTo, saleFrom, saleTo),
+                page, size, sort,
+                List.of(EventStatus.values()),
+                eventRepository.countByStatus()
+        );
+    }
+
+    /**
+     * Danh sách cho khách (không cần đăng nhập): chỉ UPCOMING, ON_SALE, SOLD_OUT.
+     * Gửi ?status=DRAFT hay CANCELLED thì vẫn bị điều kiện visibleToCustomers chặn lại, ra danh sách rỗng.
+     */
+    public EventPageResponse searchForPublic(
+            EventStatus status, String q,
+            Instant startsFrom, Instant startsTo,
+            int page, int size, String sort
+    ) {
+        validateSearch(q, startsFrom, startsTo, null, null);
+
+        return searchPage(
+                EventSpecifications.filter(status, q, startsFrom, startsTo, null, null)
+                        .and(EventSpecifications.visibleToCustomers()),
+                page, size, sort,
+                EventSpecifications.PUBLIC_STATUSES,
+                eventRepository.countByStatusIn(EventSpecifications.PUBLIC_STATUSES)
+        );
+    }
+
+    private void validateSearch(String q, Instant startsFrom, Instant startsTo, Instant saleFrom, Instant saleTo) {
         if (startsFrom != null && startsTo != null && startsFrom.isAfter(startsTo)) {
             throw new AppException(HttpStatus.BAD_REQUEST, "Khoảng ngày diễn không hợp lệ");
         }
@@ -182,28 +223,33 @@ public class EventService {
         if (q != null && q.length() > 100) {
             throw new AppException(HttpStatus.BAD_REQUEST, "Từ khoá tìm kiếm tối đa 100 ký tự");
         }
+    }
 
+    // Phần chung của danh sách admin và khách: phân trang, sắp xếp, đếm theo trạng thái
+    private EventPageResponse searchPage(
+            Specification<Event> spec,
+            int page, int size, String sort,
+            List<EventStatus> countedStatuses,
+            List<EventRepository.StatusCount> counts
+    ) {
         // Kẹp page, size vào khoảng hợp lệ thay vì báo lỗi: gõ tay ?size=1000 trên URL thì vẫn chỉ lấy 50
         int safePage = Math.max(0, page);
         int safeSize = Math.min(MAX_PAGE_SIZE, Math.max(1, size));
         Sort safeSort = SORTS.getOrDefault(sort, SORTS.get("startsAt"));
 
-        Page<Event> result = eventRepository.findAll(
-                EventSpecifications.filter(status, q, startsFrom, startsTo, saleFrom, saleTo),
-                PageRequest.of(safePage, safeSize, safeSort)
-        );
+        Page<Event> result = eventRepository.findAll(spec, PageRequest.of(safePage, safeSize, safeSort));
 
         List<EventSummaryResponse> items = new ArrayList<>();
         for (Event e : result.getContent()) {
             items.add(toSummary(e));
         }
 
-        // Đủ mọi trạng thái, trạng thái chưa có sự kiện nào thì là 0, FE không phải kiểm tra thiếu khoá
+        // Đủ các trạng thái được đếm, trạng thái chưa có sự kiện nào thì là 0, FE không phải kiểm tra thiếu khoá
         Map<String, Long> statusCounts = new LinkedHashMap<>();
-        for (EventStatus s : EventStatus.values()) {
+        for (EventStatus s : countedStatuses) {
             statusCounts.put(s.name(), 0L);
         }
-        for (EventRepository.StatusCount c : eventRepository.countByStatus()) {
+        for (EventRepository.StatusCount c : counts) {
             statusCounts.put(c.getStatus().name(), c.getTotal());
         }
 

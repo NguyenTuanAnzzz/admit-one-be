@@ -5,6 +5,7 @@ import com.an.admit_one.enums.EventStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.UUID;
@@ -24,4 +25,8 @@ public interface EventRepository extends JpaRepository<Event, UUID>, JpaSpecific
 
     @Query("select e.status as status, count(e) as total from Event e group by e.status")
     List<StatusCount> countByStatus();
+
+    // Giống countByStatus nhưng chỉ đếm các trạng thái khách được thấy
+    @Query("select e.status as status, count(e) as total from Event e where e.status in :statuses group by e.status")
+    List<StatusCount> countByStatusIn(@Param("statuses") List<EventStatus> statuses);
 }

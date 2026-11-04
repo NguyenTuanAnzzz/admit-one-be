@@ -297,6 +297,43 @@ public class SeatMapService {
         return seats;
     }
 
+    // Sơ đồ cho khách: giống get() nhưng bỏ ảnh nền (chỉ để admin đặt khu cho khớp). Bản nháp trả 404
+    @Transactional(readOnly = true)
+    public SeatMapResponse getForPublic(UUID eventId) {
+        ensureVisibleToCustomers(eventId);
+
+        SeatMapResponse full = get(eventId);
+        return new SeatMapResponse(
+                full.getEventId(),
+                full.getEventStatus(),
+                full.getMapWidth(),
+                full.getMapHeight(),
+                null,
+                full.getTiers(),
+                full.getZones(),
+                full.getObjects(),
+                full.getTotalSeats()
+        );
+    }
+
+    // Ghế của một khu cho khách chọn. Bản nháp trả 404
+    @Transactional(readOnly = true)
+    public List<SeatResponse> getSeatsForPublic(UUID eventId, UUID zoneId) {
+        ensureVisibleToCustomers(eventId);
+        return getSeats(eventId, zoneId);
+    }
+
+    // Khách không được thấy gì của bản nháp: báo 404 như sự kiện không tồn tại
+    private void ensureVisibleToCustomers(UUID eventId) {
+        Event event = eventRepository.findById(eventId).orElseThrow(() -> new AppException(
+                HttpStatus.NOT_FOUND,
+                "Không tìm thấy sự kiện"
+        ));
+        if (event.getStatus() == EventStatus.DRAFT) {
+            throw new AppException(HttpStatus.NOT_FOUND, "Không tìm thấy sự kiện");
+        }
+    }
+
     // Sinh rowCount x seatsPerRow ghế cho một khu, ghế nằm trong blocked ("B-7") thì khoá luôn
     private List<Seat> generateSeats(Event event, Zone zone, Set<String> blocked) {
         List<Seat> seats = new ArrayList<>();

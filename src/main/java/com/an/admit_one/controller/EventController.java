@@ -39,6 +39,48 @@ public class EventController {
     @Autowired
     private SeatMapService seatMapService;
 
+    // ===== Khách: không cần đăng nhập, không có @PreAuthorize. Chỉ trả sự kiện đã công bố =====
+
+    /**
+     * Danh sách sự kiện cho trang /events. Không có bản nháp và sự kiện đã huỷ.
+     * ?status=ON_SALE&q=concert&startsFrom=...&startsTo=...&page=0&size=12&sort=startsAt
+     */
+    @GetMapping("/events")
+    public ResponseEntity<EventPageResponse> searchForPublic(
+            @RequestParam(required = false) EventStatus status,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) Instant startsFrom,
+            @RequestParam(required = false) Instant startsTo,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "12") int size,
+            @RequestParam(defaultValue = "startsAt") String sort
+    ) {
+        return ResponseEntity.ok(eventService.searchForPublic(status, q, startsFrom, startsTo, page, size, sort));
+    }
+
+    // Chi tiết sự kiện. Bản nháp 404, đã huỷ vẫn xem được
+    @GetMapping("/events/{id}")
+    public ResponseEntity<EventDetailResponse> getForPublic(@PathVariable UUID id) {
+
+        return ResponseEntity.ok(eventService.getForPublic(id));
+    }
+
+    // Sơ đồ: hạng vé, khu kèm số ghế còn trống, vật thể. Không có ảnh nền
+    @GetMapping("/events/{id}/seatmap")
+    public ResponseEntity<SeatMapResponse> getSeatMapForPublic(@PathVariable UUID id) {
+
+        return ResponseEntity.ok(seatMapService.getForPublic(id));
+    }
+
+    // Ghế của một khu kèm trạng thái, để khách phóng vào khu chọn ghế
+    @GetMapping("/events/{id}/zones/{zoneId}/seats")
+    public ResponseEntity<List<SeatResponse>> getZoneSeatsForPublic(
+            @PathVariable UUID id,
+            @PathVariable UUID zoneId
+    ) {
+        return ResponseEntity.ok(seatMapService.getSeatsForPublic(id, zoneId));
+    }
+
     // ===== Admin: hàm nào cũng phải có @PreAuthorize =====
 
     /**
@@ -59,6 +101,7 @@ public class EventController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "startsAt") String sort
+
     ) {
         return ResponseEntity.ok(eventService.searchForAdmin(status, q, startsFrom, startsTo, saleFrom, saleTo, page, size, sort));
     }
