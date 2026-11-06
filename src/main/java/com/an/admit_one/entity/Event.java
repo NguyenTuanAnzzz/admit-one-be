@@ -1,3 +1,4 @@
+
 package com.an.admit_one.entity;
 
 import com.an.admit_one.enums.EventStatus;
@@ -9,6 +10,8 @@ import lombok.Setter;
 import org.hibernate.annotations.UuidGenerator;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -33,7 +36,7 @@ public class Event {
     @Column(length = 255)
     private String address;
 
-    // Link chỉ đường Google Maps tới địa điểm, trang chi tiết hiện nút "Chỉ đường"
+    // Link chỉ đường Google Maps
     @Column(length = 500)
     private String googleMapsUrl;
 
@@ -46,7 +49,7 @@ public class Event {
     @Column(nullable = false)
     private Instant startsAt;
 
-    // Giờ mở bán: trang chi tiết đếm ngược tới mốc này (C-03)
+    // Thời gian mở bán vé
     @Column(nullable = false)
     private Instant saleOpensAt;
 
@@ -54,20 +57,13 @@ public class Event {
     @Column(nullable = false, length = 20)
     private EventStatus status = EventStatus.DRAFT;
 
-    // Khung toạ độ của sơ đồ ghế, ví dụ 1200 x 800. Mọi x, y của khu và vật thể tính theo khung này. Null khi chưa có sơ đồ
-    @Column
-    private Integer mapWidth;
-
-    @Column
-    private Integer mapHeight;
-
-    // Ảnh mặt bằng làm nền để admin đặt khu cho khớp, khách không thấy
-    @Column(length = 500)
-    private String mapBackgroundUrl;
-
-    // Giới hạn vé mỗi tài khoản cho sự kiện này (spec 5.6). columnDefinition có default để thêm cột vào bảng đã có dữ liệu không lỗi
-    @Column(nullable = false, columnDefinition = "integer not null default 4")
-    private Integer maxTicketsPerUser = 4;
+    // Một Event có nhiều Ticket
+    @OneToMany(
+            mappedBy = "event",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true
+    )
+    private List<Ticket> tickets = new ArrayList<>();
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt;

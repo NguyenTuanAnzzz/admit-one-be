@@ -4,6 +4,7 @@ import com.an.admit_one.dto.response.UploadResponse;
 import com.an.admit_one.exception.AppException;
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -12,6 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.Map;
 import java.util.Set;
 
+@Slf4j
 @Service
 public class UploadService {
 
@@ -70,6 +72,8 @@ public class UploadService {
             );
 
         } catch (Exception e) {
+            // Ghi lý do thật (sai key, mất mạng, Cloudinary từ chối) vào log, khách chỉ thấy câu báo chung
+            log.warn("Upload poster lên Cloudinary lỗi: {}", e.getMessage(), e);
             throw new AppException(
                     HttpStatus.BAD_GATEWAY,
                     "Tải ảnh lên chưa thành công. Vui lòng thử lại."

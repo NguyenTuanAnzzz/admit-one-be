@@ -45,7 +45,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(response);
     }
 
-    // JSON hỏng hoặc sai kiểu, ví dụ "seatLayout": "CIRCLE" không có trong enum
+    // JSON hỏng hoặc sai kiểu, ví dụ "status": "ABC" không có trong enum
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleNotReadable(HttpMessageNotReadableException ex, HttpServletRequest request) {
         return build(HttpStatus.BAD_REQUEST, "Dữ liệu gửi lên không đúng định dạng", request);
@@ -61,7 +61,7 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.FORBIDDEN, "Bạn không có quyền thực hiện thao tác này", request);
     }
 
-    // File vượt spring.servlet.multipart.max-file-size, Spring chặn trước khi vào UploadService
+    // File vượt spring.servlet.multipart.max-file-size, Spring chặn trước khi vào controller
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ErrorResponse> handleMaxUploadSize(MaxUploadSizeExceededException ex, HttpServletRequest request) {
         return build(HttpStatus.CONTENT_TOO_LARGE, "Ảnh tối đa 10MB", request);
