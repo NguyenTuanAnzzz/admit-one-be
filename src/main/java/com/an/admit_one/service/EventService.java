@@ -20,10 +20,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 @Service
 public class EventService {
@@ -142,5 +139,40 @@ public class EventService {
                 event.getCreatedAt(),
                 event.getUpdatedAt()
         ));
+    }
+
+    public EventResponse publishEvent(UUID eventId) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new AppException(
+                        HttpStatus.NOT_FOUND,
+                        "Không tìm thấy sự kiện"
+                ));
+
+        if (event.getStatus() != EventStatus.DRAFT) {
+            throw new AppException(
+                    HttpStatus.BAD_REQUEST,
+                    "Chỉ có thể công bố sự kiện ở trạng thái DRAFT"
+            );
+        }
+        event.setStatus(EventStatus.PUBLISHED);
+
+        eventRepository.save(event);
+
+        return new EventResponse(
+                event.getId(),
+                event.getName(),
+                event.getVenue(),
+                event.getAddress(),
+                event.getGoogleMapsUrl(),
+                event.getDescription(),
+                event.getPosterUrl(),
+                event.getStartsAt(),
+                event.getSaleOpensAt(),
+                event.getStatus(),
+                event.getCreatedAt(),
+                event.getUpdatedAt()
+        );
+        
+
     }
 }

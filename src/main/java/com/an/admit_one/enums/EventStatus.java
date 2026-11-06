@@ -1,10 +1,16 @@
 package com.an.admit_one.enums;
 
 public enum EventStatus {
+
+    // Sự kiện đang được tạo, chưa công khai cho khách hàng
     DRAFT,
-    UPCOMING,
-    ON_SALE,
+
+    // Sự kiện đã được công khai
+    PUBLISHED,
+
+    // Tất cả các loại vé có thể bán đều đã hết
     SOLD_OUT,
-    // Huỷ sự kiện đã công bố: không xoá, giữ lại đơn và vé để hoàn tiền
+
+    // Sự kiện bị huỷ, không xoá dữ liệu để xử lý hoàn tiền
     CANCELLED
 }

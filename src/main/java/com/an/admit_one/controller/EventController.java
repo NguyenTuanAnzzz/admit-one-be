@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api")
@@ -46,6 +47,14 @@ public class EventController {
                 keyword, eventDate, saleDate, page, size
         );
 
+        return ResponseEntity.ok(response);
+    }
+    @PreAuthorize("hasRole('ADMIN')")
+    @PatchMapping("/admin/events/{eventId}/publish")
+    public ResponseEntity<EventResponse> publishEvent(
+            @PathVariable UUID eventId
+    ) {
+        EventResponse response = eventService.publishEvent(eventId);
         return ResponseEntity.ok(response);
     }
 }
