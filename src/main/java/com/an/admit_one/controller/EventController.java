@@ -1,6 +1,7 @@
 package com.an.admit_one.controller;
 
 import com.an.admit_one.dto.request.EventRequest;
+import com.an.admit_one.dto.response.EventDetailResponse;
 import com.an.admit_one.dto.response.EventResponse;
 import com.an.admit_one.service.EventService;
 import jakarta.validation.Valid;
@@ -55,6 +56,15 @@ public class EventController {
             @PathVariable UUID eventId
     ) {
         EventResponse response = eventService.publishEvent(eventId);
+        return ResponseEntity.ok(response);
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/admin/events/{eventId}")
+    public ResponseEntity<EventDetailResponse> getEventDetail(
+            @PathVariable UUID eventId
+    ) {
+        EventDetailResponse response = eventService.getEventDetail(eventId);
         return ResponseEntity.ok(response);
     }
 }

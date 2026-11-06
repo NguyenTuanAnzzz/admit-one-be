@@ -2,7 +2,9 @@ package com.an.admit_one.service;
 
 import com.an.admit_one.dto.request.EventRequest;
 import com.an.admit_one.dto.request.TicketRequest;
+import com.an.admit_one.dto.response.EventDetailResponse;
 import com.an.admit_one.dto.response.EventResponse;
+import com.an.admit_one.dto.response.TicketResponse;
 import com.an.admit_one.entity.Event;
 import com.an.admit_one.entity.Ticket;
 import com.an.admit_one.enums.EventStatus;
@@ -172,7 +174,48 @@ public class EventService {
                 event.getCreatedAt(),
                 event.getUpdatedAt()
         );
-        
 
+
+    }
+
+    public EventDetailResponse getEventDetail(UUID eventId){
+        Event event = eventRepository.findByIdWithTickets(eventId)
+                .orElseThrow(() -> new AppException(
+                        HttpStatus.NOT_FOUND,
+                        "Không tìm thấy sự kiện"
+                ));
+
+        List<TicketResponse> ticketResponseList = new ArrayList<>();
+        if (event.getTickets() != null && !event.getTickets().isEmpty()){
+            for(Ticket ticket: event.getTickets()){
+                TicketResponse ticketResponse = new TicketResponse(
+                        ticket.getId(),
+                        ticket.getName(),
+                        ticket.getDescription(),
+                        ticket.getPrice(),
+                        ticket.getQuantity(),
+                        ticket.getSoldQuantity(),
+                        ticket.getStatus(),
+                        ticket.getCreatedAt(),
+                        ticket.getUpdatedAt()
+                );
+                ticketResponseList.add(ticketResponse);
+            }
+        }
+        return new EventDetailResponse(
+                event.getId(),
+                event.getName(),
+                event.getVenue(),
+                event.getAddress(),
+                event.getGoogleMapsUrl(),
+                event.getDescription(),
+                event.getPosterUrl(),
+                event.getStartsAt(),
+                event.getSaleOpensAt(),
+                event.getStatus(),
+                ticketResponseList,
+                event.getCreatedAt(),
+                event.getUpdatedAt()
+        );
     }
 }
