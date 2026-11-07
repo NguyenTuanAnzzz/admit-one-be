@@ -1,8 +1,10 @@
 package com.an.admit_one.controller;
 
 import com.an.admit_one.dto.request.EventRequest;
+import com.an.admit_one.dto.request.TicketRequest;
 import com.an.admit_one.dto.response.EventDetailResponse;
 import com.an.admit_one.dto.response.EventResponse;
+import com.an.admit_one.dto.response.TicketResponse;
 import com.an.admit_one.service.EventService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,10 +54,10 @@ public class EventController {
     }
     @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/admin/events/{eventId}/publish")
-    public ResponseEntity<EventResponse> publishEvent(
+    public ResponseEntity<EventResponse> makeEventPublic(
             @PathVariable UUID eventId
     ) {
-        EventResponse response = eventService.publishEvent(eventId);
+        EventResponse response = eventService.makeEventPublic(eventId);
         return ResponseEntity.ok(response);
     }
 
@@ -67,4 +69,16 @@ public class EventController {
         EventDetailResponse response = eventService.getEventDetail(eventId);
         return ResponseEntity.ok(response);
     }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PutMapping("/admin/events/{eventId}")
+    public ResponseEntity<EventDetailResponse> updateEvent(
+            @PathVariable UUID eventId,
+            @Valid @RequestBody EventRequest request
+    ) {
+        EventDetailResponse response = eventService.updateEvent(eventId, request);
+        return ResponseEntity.ok(response);
+    }
+
+
 }
