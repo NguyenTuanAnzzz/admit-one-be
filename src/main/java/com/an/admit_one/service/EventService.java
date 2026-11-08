@@ -3,10 +3,7 @@ package com.an.admit_one.service;
 import com.an.admit_one.dto.request.EventRequest;
 import com.an.admit_one.dto.request.TicketRequest;
 import com.an.admit_one.dto.request.UpdateEventRequest;
-import com.an.admit_one.dto.response.EventDetailResponse;
-import com.an.admit_one.dto.response.EventResponse;
-import com.an.admit_one.dto.response.PublicEventSummaryResponse;
-import com.an.admit_one.dto.response.TicketResponse;
+import com.an.admit_one.dto.response.*;
 import com.an.admit_one.entity.Event;
 import com.an.admit_one.entity.Ticket;
 import com.an.admit_one.enums.EventStatus;
@@ -453,5 +450,53 @@ public class EventService {
                     );
                 });
 
+    }
+    public PublicEventDetailResponse getPublicEventDetail(UUID eventId) {
+
+        // 1. Tìm sự kiện
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new AppException(
+                        HttpStatus.NOT_FOUND,
+                        "Không tìm thấy sự kiện"
+                ));
+
+        // 2. Không cho phép xem sự kiện chưa công bố hoặc đã huỷ
+        if (event.getStatus() == EventStatus.DRAFT
+                || event.getStatus() == EventStatus.CANCELLED) {
+            throw new AppException(
+                    HttpStatus.NOT_FOUND,
+                    "Không tìm thấy sự kiện"
+            );
+        }
+
+        // 3. Lấy danh sách vé của sự kiện
+        List<Ticket> tickets = ticketRepository.findByEventId(eventId);
+
+        // 4. Mapping danh sách vé sang PublicTicketResponse
+        List<PublicTicketResponse> ticketResponses = tickets.stream()
+                .map(ticket -> new PublicTicketResponse(
+                        ticket.getId(),
+                        ticket.getName(),
+                        ticket.getDescription(),
+                        ticket.getPrice(),
+                        ticket.getQuantity() - ticket.getSoldQuantity(),
+                        ticket.getStatus()
+                ))
+                .toList();
+
+        // 5. Trả về chi tiết sự kiện
+        return new PublicEventDetailResponse(
+                event.getId(),
+                event.getName(),
+                event.getVenue(),
+                event.getAddress(),
+                event.getGoogleMapsUrl(),
+                event.getDescription(),
+                event.getPosterUrl(),
+                event.getStartsAt(),
+                event.getSaleOpensAt(),
+                event.getStatus(),
+                ticketResponses
+        );
     }
 }

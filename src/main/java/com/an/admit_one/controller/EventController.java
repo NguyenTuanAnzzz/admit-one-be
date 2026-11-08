@@ -3,10 +3,7 @@ package com.an.admit_one.controller;
 import com.an.admit_one.dto.request.EventRequest;
 import com.an.admit_one.dto.request.TicketRequest;
 import com.an.admit_one.dto.request.UpdateEventRequest;
-import com.an.admit_one.dto.response.EventDetailResponse;
-import com.an.admit_one.dto.response.EventResponse;
-import com.an.admit_one.dto.response.PublicEventSummaryResponse;
-import com.an.admit_one.dto.response.TicketResponse;
+import com.an.admit_one.dto.response.*;
 import com.an.admit_one.enums.EventStatus;
 import com.an.admit_one.service.EventService;
 import jakarta.validation.Valid;
@@ -106,6 +103,16 @@ public class EventController {
             @RequestParam(defaultValue = "12") int size
     ) {
         return ResponseEntity.ok(eventService.getPublicEvents(keyword, status, from, to, page, size));
+    }
+
+    @GetMapping("/events/{eventId}")
+    public ResponseEntity<PublicEventDetailResponse> getPublicEventDetail(
+            @PathVariable UUID eventId
+    ) {
+        PublicEventDetailResponse response =
+                eventService.getPublicEventDetail(eventId);
+
+        return ResponseEntity.ok(response);
     }
 
 }
