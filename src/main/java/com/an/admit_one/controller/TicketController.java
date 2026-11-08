@@ -48,4 +48,15 @@ public class TicketController {
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @DeleteMapping("/admin/events/{eventId}/tickets/{ticketId}")
+    public ResponseEntity<Void> deleteTicket(
+            @PathVariable UUID eventId,
+            @PathVariable UUID ticketId
+    ) {
+        ticketService.deleteTicket(eventId, ticketId);
+
+        return ResponseEntity.noContent().build();
+    }
 }

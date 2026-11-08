@@ -141,4 +141,30 @@ public class TicketService {
                 ticket.getUpdatedAt()
         );
     }
+
+    @Transactional
+    public void deleteTicket(UUID eventId, UUID ticketId) {
+
+        Ticket ticket = ticketRepository.findByIdAndEventId(ticketId, eventId)
+                .orElseThrow(() -> new AppException(
+                        HttpStatus.NOT_FOUND,
+                        "Không tìm thấy vé trong sự kiện"
+                ));
+
+        if (ticket.getEvent().getStatus() != EventStatus.DRAFT) {
+            throw new AppException(
+                    HttpStatus.CONFLICT,
+                    "Chỉ được xóa vé khi sự kiện đang ở trạng thái DRAFT"
+            );
+        }
+
+        if (ticket.getSoldQuantity() > 0) {
+            throw new AppException(
+                    HttpStatus.CONFLICT,
+                    "Không thể xóa loại vé đã có vé được bán"
+            );
+        }
+
+        ticketRepository.delete(ticket);
+    }
 }
