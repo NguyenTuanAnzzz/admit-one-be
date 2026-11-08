@@ -2,6 +2,7 @@ package com.an.admit_one.controller;
 
 import com.an.admit_one.dto.request.EventRequest;
 import com.an.admit_one.dto.request.TicketRequest;
+import com.an.admit_one.dto.request.UpdateEventRequest;
 import com.an.admit_one.dto.response.EventDetailResponse;
 import com.an.admit_one.dto.response.EventResponse;
 import com.an.admit_one.dto.response.TicketResponse;
@@ -74,11 +75,23 @@ public class EventController {
     @PutMapping("/admin/events/{eventId}")
     public ResponseEntity<EventDetailResponse> updateEvent(
             @PathVariable UUID eventId,
-            @Valid @RequestBody EventRequest request
+            @Valid @RequestBody UpdateEventRequest request
     ) {
-        EventDetailResponse response = eventService.updateEvent(eventId, request);
+        EventDetailResponse response =
+                eventService.updateEvent(eventId, request);
+
         return ResponseEntity.ok(response);
     }
 
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @DeleteMapping("/admin/events/{eventId}")
+    public ResponseEntity<Void> deleteEvent(
+            @PathVariable UUID eventId
+    ) {
+        eventService.deleteEvent(eventId);
+
+        return ResponseEntity.noContent().build();
+    }
 
 }

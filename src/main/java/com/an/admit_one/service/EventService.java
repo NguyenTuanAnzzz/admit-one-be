@@ -2,6 +2,7 @@ package com.an.admit_one.service;
 
 import com.an.admit_one.dto.request.EventRequest;
 import com.an.admit_one.dto.request.TicketRequest;
+import com.an.admit_one.dto.request.UpdateEventRequest;
 import com.an.admit_one.dto.response.EventDetailResponse;
 import com.an.admit_one.dto.response.EventResponse;
 import com.an.admit_one.dto.response.TicketResponse;
@@ -12,7 +13,7 @@ import com.an.admit_one.enums.TicketStatus;
 import com.an.admit_one.exception.AppException;
 import com.an.admit_one.repository.EventRepository;
 import com.an.admit_one.specification.EventSpecifications;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -157,12 +158,10 @@ public class EventService {
 
         if (event.getStatus() != EventStatus.DRAFT) {
             throw new AppException(
-                    HttpStatus.BAD_REQUEST,
+                    HttpStatus.CONFLICT,
                     "Chỉ có thể công bố sự kiện ở trạng thái DRAFT"
             );
         }
-        event.setStatus(EventStatus.UPCOMING);
-        // Giờ mở bán phải chưa tới, vì công bố chỉ đưa sự kiện sang UPCOMING
         if (!event.getSaleOpensAt().isAfter(Instant.now())) {
             throw new AppException(
                     HttpStatus.BAD_REQUEST,
@@ -186,9 +185,7 @@ public class EventService {
             );
         }
 
-        // Nếu muốn ép "ít nhất 1 vé ACTIVE" thì kiểm tra sau bước kích hoạt bên dưới
         event.setStatus(EventStatus.UPCOMING);
-
         for (Ticket ticket : event.getTickets()) {
             ticket.setStatus(TicketStatus.INACTIVE);
         }
@@ -255,9 +252,12 @@ public class EventService {
     }
 
     @Transactional
-    public EventDetailResponse updateEvent(UUID eventId, @Valid EventRequest request) {
+    public EventDetailResponse updateEvent(
+            UUID eventId,
+            @Valid UpdateEventRequest request
+    ) {
 
-        Event event = eventRepository.findById(eventId)
+        Event event = eventRepository.findByIdWithTickets(eventId)
                 .orElseThrow(() -> new AppException(
                         HttpStatus.NOT_FOUND,
                         "Không tìm thấy sự kiện"
@@ -268,72 +268,69 @@ public class EventService {
         // Không cho chỉnh sửa sự kiện đã huỷ hoặc đã diễn ra
         if (event.getStatus() == EventStatus.CANCELLED
                 || !event.getStartsAt().isAfter(now)) {
+
             throw new AppException(
                     HttpStatus.CONFLICT,
                     "Sự kiện đã kết thúc hoặc đã huỷ, không thể chỉnh sửa"
             );
         }
 
-        // Kiểm tra thời gian sự kiện mới
-        if (request.getStartsAt() == null
-                || !request.getStartsAt().isAfter(now)) {
+        // Kiểm tra thời gian diễn ra sự kiện
+        if (!request.getStartsAt().isAfter(now)) {
             throw new AppException(
                     HttpStatus.BAD_REQUEST,
                     "Thời gian diễn ra sự kiện phải ở tương lai"
             );
         }
 
-        if (request.getSaleOpensAt() == null
-                || !request.getSaleOpensAt().isBefore(request.getStartsAt())) {
+        // Giờ mở bán phải trước giờ diễn
+        if (!request.getSaleOpensAt().isBefore(request.getStartsAt())) {
             throw new AppException(
                     HttpStatus.BAD_REQUEST,
                     "Thời gian mở bán phải trước thời gian diễn ra sự kiện"
             );
         }
 
-        if (event.getStatus() == EventStatus.DRAFT) {
+        EventStatus status = event.getStatus();
 
-            // DRAFT: Cho phép sửa toàn bộ thông tin Event
-            event.setName(request.getName());
-            event.setDescription(request.getDescription());
-            event.setPosterUrl(request.getPosterUrl());
-            event.setVenue(request.getVenue());
-            event.setAddress(request.getAddress());
-            event.setGoogleMapsUrl(request.getGoogleMapsUrl());
-            event.setStartsAt(request.getStartsAt());
+        // DRAFT: Được sửa toàn bộ thông tin Event
+        if (status == EventStatus.DRAFT) {
+
             event.setSaleOpensAt(request.getSaleOpensAt());
 
-        } else if (event.getStatus() == EventStatus.UPCOMING) {
+        } else if (status == EventStatus.UPCOMING) {
 
-            // UPCOMING: Chưa đến giờ mở bán thì được thay đổi
-            if (!event.getSaleOpensAt().isAfter(now)) {
-                throw new AppException(
-                        HttpStatus.CONFLICT,
-                        "Sự kiện đã đến giờ mở bán, không thể chỉnh sửa"
-                );
+            if (event.getSaleOpensAt().isAfter(now)) {
+
+                // Chưa đến giờ mở bán: được thay đổi giờ mở bán
+                if (!request.getSaleOpensAt().isAfter(now)) {
+                    throw new AppException(
+                            HttpStatus.BAD_REQUEST,
+                            "Giờ mở bán mới phải ở tương lai"
+                    );
+                }
+
+                event.setSaleOpensAt(request.getSaleOpensAt());
+
+            } else {
+
+                // Đã đến giờ mở bán nhưng job chưa kịp chuyển trạng thái:
+                // Khóa giờ mở bán, vẫn cho sửa các thông tin khác
+                if (!Objects.equals(
+                        event.getSaleOpensAt(),
+                        request.getSaleOpensAt())) {
+
+                    throw new AppException(
+                            HttpStatus.CONFLICT,
+                            "Sự kiện đã đến giờ mở bán, không thể thay đổi giờ mở bán"
+                    );
+                }
             }
 
-            // Giờ mở bán mới phải ở tương lai
-            if (!request.getSaleOpensAt().isAfter(now)) {
-                throw new AppException(
-                        HttpStatus.BAD_REQUEST,
-                        "Giờ mở bán mới phải ở tương lai"
-                );
-            }
+        } else if (status == EventStatus.ON_SALE
+                || status == EventStatus.SOLD_OUT) {
 
-            event.setName(request.getName());
-            event.setDescription(request.getDescription());
-            event.setPosterUrl(request.getPosterUrl());
-            event.setVenue(request.getVenue());
-            event.setAddress(request.getAddress());
-            event.setGoogleMapsUrl(request.getGoogleMapsUrl());
-            event.setStartsAt(request.getStartsAt());
-            event.setSaleOpensAt(request.getSaleOpensAt());
-
-        } else if (event.getStatus() == EventStatus.ON_SALE
-                || event.getStatus() == EventStatus.SOLD_OUT) {
-
-            // Không cho thay đổi giờ mở bán sau khi đã mở bán
+            // Đã mở bán: Không cho thay đổi giờ mở bán
             if (!Objects.equals(
                     event.getSaleOpensAt(),
                     request.getSaleOpensAt())) {
@@ -344,15 +341,22 @@ public class EventService {
                 );
             }
 
-            // ON_SALE / SOLD_OUT: Cho sửa thông tin Event
-            event.setName(request.getName());
-            event.setDescription(request.getDescription());
-            event.setPosterUrl(request.getPosterUrl());
-            event.setVenue(request.getVenue());
-            event.setAddress(request.getAddress());
-            event.setGoogleMapsUrl(request.getGoogleMapsUrl());
-            event.setStartsAt(request.getStartsAt());
+        } else {
+
+            throw new AppException(
+                    HttpStatus.CONFLICT,
+                    "Trạng thái sự kiện không cho phép chỉnh sửa"
+            );
         }
+
+        // Các thông tin này được sửa ở DRAFT, UPCOMING, ON_SALE, SOLD_OUT
+        event.setName(request.getName());
+        event.setDescription(request.getDescription());
+        event.setPosterUrl(request.getPosterUrl());
+        event.setVenue(request.getVenue());
+        event.setAddress(request.getAddress());
+        event.setGoogleMapsUrl(request.getGoogleMapsUrl());
+        event.setStartsAt(request.getStartsAt());
 
         eventRepository.save(event);
 
@@ -383,6 +387,27 @@ public class EventService {
                 event.getCreatedAt(),
                 event.getUpdatedAt()
         );
+    }
+
+
+
+    @Transactional
+    public void deleteEvent(UUID eventId) {
+
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new AppException(
+                        HttpStatus.NOT_FOUND,
+                        "Không tìm thấy sự kiện"
+                ));
+
+        if (event.getStatus() != EventStatus.DRAFT) {
+            throw new AppException(
+                    HttpStatus.CONFLICT,
+                    "Chỉ được xóa sự kiện khi đang ở trạng thái DRAFT"
+            );
+        }
+
+        eventRepository.delete(event);
     }
 
 

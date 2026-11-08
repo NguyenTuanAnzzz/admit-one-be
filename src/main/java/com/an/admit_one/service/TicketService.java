@@ -75,7 +75,22 @@ public class TicketService {
             );
         }
 
-        ticket.setName(request.getName());
+        // Chuẩn hóa tên vé
+        String ticketName = request.getName().trim();
+
+        // Kiểm tra trùng tên, loại trừ chính vé đang cập nhật
+        if (ticketRepository.existsByEventIdAndNameIgnoreCaseAndIdNot(
+                eventId,
+                ticketName,
+                ticketId
+        )) {
+            throw new AppException(
+                    HttpStatus.CONFLICT,
+                    "Tên loại vé đã tồn tại trong sự kiện này"
+            );
+        }
+
+        ticket.setName(ticketName);
         ticket.setDescription(request.getDescription());
         ticket.setPrice(request.getPrice());
         ticket.setQuantity(request.getQuantity());
@@ -115,9 +130,23 @@ public class TicketService {
             );
         }
 
+        // Chuẩn hóa tên vé
+        String ticketName = request.getName().trim();
+
+        // Kiểm tra trùng tên trong cùng sự kiện
+        if (ticketRepository.existsByEventIdAndNameIgnoreCase(
+                eventId,
+                ticketName
+        )) {
+            throw new AppException(
+                    HttpStatus.CONFLICT,
+                    "Tên loại vé đã tồn tại trong sự kiện này"
+            );
+        }
+
         Ticket ticket = new Ticket();
 
-        ticket.setName(request.getName());
+        ticket.setName(ticketName);
         ticket.setDescription(request.getDescription());
         ticket.setPrice(request.getPrice());
         ticket.setQuantity(request.getQuantity());

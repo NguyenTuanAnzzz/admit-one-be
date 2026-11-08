@@ -10,5 +10,14 @@ import java.util.UUID;
 public interface TicketRepository extends JpaRepository<Ticket, UUID> {
 
     Optional<Ticket> findByIdAndEventId(UUID ticketId, UUID eventId);
+    boolean existsByEventIdAndNameIgnoreCase(
+            UUID eventId,
+            String name
+    );
 
+    boolean existsByEventIdAndNameIgnoreCaseAndIdNot(
+            UUID eventId,
+            String name,
+            UUID ticketId
+    );
 }
