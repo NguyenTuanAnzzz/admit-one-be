@@ -5,7 +5,9 @@ import com.an.admit_one.dto.request.TicketRequest;
 import com.an.admit_one.dto.request.UpdateEventRequest;
 import com.an.admit_one.dto.response.EventDetailResponse;
 import com.an.admit_one.dto.response.EventResponse;
+import com.an.admit_one.dto.response.PublicEventSummaryResponse;
 import com.an.admit_one.dto.response.TicketResponse;
+import com.an.admit_one.enums.EventStatus;
 import com.an.admit_one.service.EventService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -92,6 +94,18 @@ public class EventController {
         eventService.deleteEvent(eventId);
 
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/events")
+    public ResponseEntity<Page<PublicEventSummaryResponse>> getPublicEvents(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) EventStatus status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "12") int size
+    ) {
+        return ResponseEntity.ok(eventService.getPublicEvents(keyword, status, from, to, page, size));
     }
 
 }

@@ -1,11 +1,13 @@
 package com.an.admit_one.specification;
 
 import com.an.admit_one.entity.Event;
+import com.an.admit_one.enums.EventStatus;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.List;
 
 public class EventSpecifications {
 
@@ -64,6 +66,70 @@ public class EventSpecifications {
                     cb.greaterThanOrEqualTo(root.get("saleOpensAt"), start),
                     cb.lessThan(root.get("saleOpensAt"), end)
             );
+        };
+    }
+    // Lọc theo khoảng ngày diễn
+    public static Specification<Event> hasEventDateRange(
+            LocalDate from,
+            LocalDate to
+    ) {
+        return (root, query, cb) -> {
+
+            ZoneId zone = ZoneId.systemDefault();
+
+            if (from == null && to == null) {
+                return cb.conjunction();
+            }
+
+            if (from != null && to != null) {
+                Instant start = from.atStartOfDay(zone).toInstant();
+                Instant end = to.plusDays(1).atStartOfDay(zone).toInstant();
+
+                return cb.and(
+                        cb.greaterThanOrEqualTo(root.get("startsAt"), start),
+                        cb.lessThan(root.get("startsAt"), end)
+                );
+            }
+
+            if (from != null) {
+                Instant start = from.atStartOfDay(zone).toInstant();
+
+                return cb.greaterThanOrEqualTo(root.get("startsAt"), start);
+            }
+
+            Instant end = to.plusDays(1).atStartOfDay(zone).toInstant();
+
+            return cb.lessThan(root.get("startsAt"), end);
+        };
+    }
+
+    // Chỉ lấy sự kiện được phép công khai
+    public static Specification<Event> hasPublicStatus() {
+        return (root, query, cb) ->
+                root.get("status").in(
+                        EventStatus.UPCOMING,
+                        EventStatus.ON_SALE,
+                        EventStatus.SOLD_OUT
+                );
+    }
+
+    // Lọc theo trạng thái Public mà khách yêu cầu
+    public static Specification<Event> hasPublicStatus(EventStatus status) {
+        return (root, query, cb) -> {
+
+            if (status == null) {
+                return cb.conjunction();
+            }
+
+            if (!List.of(
+                    EventStatus.UPCOMING,
+                    EventStatus.ON_SALE,
+                    EventStatus.SOLD_OUT
+            ).contains(status)) {
+                return cb.disjunction();
+            }
+
+            return cb.equal(root.get("status"), status);
         };
     }
 }

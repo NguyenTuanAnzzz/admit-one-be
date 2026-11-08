@@ -5,6 +5,7 @@ import com.an.admit_one.dto.request.TicketRequest;
 import com.an.admit_one.dto.request.UpdateEventRequest;
 import com.an.admit_one.dto.response.EventDetailResponse;
 import com.an.admit_one.dto.response.EventResponse;
+import com.an.admit_one.dto.response.PublicEventSummaryResponse;
 import com.an.admit_one.dto.response.TicketResponse;
 import com.an.admit_one.entity.Event;
 import com.an.admit_one.entity.Ticket;
@@ -12,6 +13,7 @@ import com.an.admit_one.enums.EventStatus;
 import com.an.admit_one.enums.TicketStatus;
 import com.an.admit_one.exception.AppException;
 import com.an.admit_one.repository.EventRepository;
+import com.an.admit_one.repository.TicketRepository;
 import com.an.admit_one.specification.EventSpecifications;
 import org.springframework.transaction.annotation.Transactional;
 import jakarta.validation.Valid;
@@ -24,6 +26,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.*;
@@ -33,6 +36,9 @@ public class EventService {
 
     @Autowired
     private EventRepository eventRepository;
+
+    @Autowired
+    private TicketRepository ticketRepository;
 
     public EventResponse createEvent(EventRequest request) {
         if (eventRepository.existsByNameIgnoreCaseAndStartsAt(
@@ -411,4 +417,41 @@ public class EventService {
     }
 
 
+    public Page<PublicEventSummaryResponse> getPublicEvents(String keyword, EventStatus status, LocalDate from, LocalDate to, int page, int size) {
+
+        Pageable pageable = PageRequest.of(
+                page,
+                size,
+                Sort.by("createdAt").descending()
+        );
+
+        Specification<Event> spec = Specification
+                .where(EventSpecifications.search(keyword))
+                .and(EventSpecifications.hasEventDateRange(from, to))
+                .and(EventSpecifications.hasPublicStatus())
+                .and(EventSpecifications.hasPublicStatus(status));
+
+        return eventRepository.findAll(spec, pageable)
+                .map(event -> {
+
+                    BigDecimal priceFrom = ticketRepository
+                            .findByEventId(event.getId())
+                            .stream()
+                            .map(Ticket::getPrice)
+                            .min(BigDecimal::compareTo)
+                            .orElse(null);
+
+                    return new PublicEventSummaryResponse(
+                            event.getId(),
+                            event.getName(),
+                            event.getVenue(),
+                            event.getPosterUrl(),
+                            event.getStartsAt(),
+                            event.getSaleOpensAt(),
+                            event.getStatus(),
+                            priceFrom
+                    );
+                });
+
+    }
 }
