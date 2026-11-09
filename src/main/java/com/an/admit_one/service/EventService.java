@@ -270,6 +270,7 @@ public class EventService {
 
         // Không cho chỉnh sửa sự kiện đã huỷ hoặc đã diễn ra
         if (event.getStatus() == EventStatus.CANCELLED
+                || event.getStatus() == EventStatus.ENDED
                 || !event.getStartsAt().isAfter(now)) {
 
             throw new AppException(

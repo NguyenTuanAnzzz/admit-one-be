@@ -26,6 +26,11 @@ public interface EventRepository extends JpaRepository<Event, UUID>, JpaSpecific
 """)
     Optional<Event> findByIdWithTickets(@Param("eventId") UUID eventId);
 
+    List<Event> findByStatusInAndStartsAtLessThanEqual(
+            List<EventStatus> statuses,
+            Instant startsAt
+    );
+
     List<Event> findByStatusAndSaleOpensAtLessThanEqual(
             EventStatus status,
             Instant time

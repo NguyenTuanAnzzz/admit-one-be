@@ -109,7 +109,8 @@ public class EventSpecifications {
                 root.get("status").in(
                         EventStatus.UPCOMING,
                         EventStatus.ON_SALE,
-                        EventStatus.SOLD_OUT
+                        EventStatus.SOLD_OUT,
+                        EventStatus.ENDED
                 );
     }
 
@@ -124,7 +125,8 @@ public class EventSpecifications {
             if (!List.of(
                     EventStatus.UPCOMING,
                     EventStatus.ON_SALE,
-                    EventStatus.SOLD_OUT
+                    EventStatus.SOLD_OUT,
+                    EventStatus.ENDED
             ).contains(status)) {
                 return cb.disjunction();
             }
