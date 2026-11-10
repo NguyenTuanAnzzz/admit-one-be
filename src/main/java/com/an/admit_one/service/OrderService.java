@@ -3,6 +3,7 @@ package com.an.admit_one.service;
 import com.an.admit_one.dto.request.CreateOrderItemRequest;
 import com.an.admit_one.dto.request.CreateOrderRequest;
 import com.an.admit_one.dto.response.CreateOrderResponse;
+import com.an.admit_one.dto.response.MyOrderResponse;
 import com.an.admit_one.dto.response.OrderItemResponse;
 import com.an.admit_one.entity.*;
 import com.an.admit_one.enums.EventStatus;
@@ -11,8 +12,14 @@ import com.an.admit_one.enums.TicketStatus;
 import com.an.admit_one.exception.AppException;
 import com.an.admit_one.repository.*;
 import com.an.admit_one.security.UserPrincipal;
+import com.an.admit_one.specification.OrderSpecifications;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -153,5 +160,49 @@ public class OrderService {
                 order.getExpiresAt(),
                 itemResponses
         );
+    }
+
+
+    public Page<MyOrderResponse> getMyOrders(String keyword, OrderStatus status, int page, int size) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
+
+        Specification<Order> spec = Specification
+                .where(OrderSpecifications.belongsTo(principal.getUser().getId()))
+                .and(OrderSpecifications.hasStatus(status))
+                .and(OrderSpecifications.search(keyword))
+                .and(OrderSpecifications.fetchEvent());
+
+        Pageable pageable = PageRequest.of(
+                Math.max(page, 0),
+                Math.min(Math.max(size, 1), 50),
+                Sort.by(Sort.Direction.DESC, "createdAt")
+        );
+
+        Page<Order> orderPage = orderRepository.findAll(spec, pageable);
+
+        return orderPage.map(order -> new MyOrderResponse(
+                order.getId(),
+                order.getCode(),
+                order.getStatus().name(),
+                order.getTotalAmount(),
+                order.getExpiresAt(),
+                order.getCreatedAt(),
+                order.getPaidAt(),
+                order.getEvent().getId(),
+                order.getEvent().getName(),
+                order.getEvent().getPosterUrl(),
+                order.getEvent().getStartsAt(),
+                order.getEvent().getVenue(),
+                order.getItems().stream()
+                        .map(i -> new OrderItemResponse(
+                                i.getTicket().getId(),
+                                i.getTicket().getName(),
+                                i.getQuantity(),
+                                i.getUnitPrice(),
+                                i.getUnitPrice().multiply(BigDecimal.valueOf(i.getQuantity()))
+                        ))
+                        .toList()
+        ));
     }
 }
