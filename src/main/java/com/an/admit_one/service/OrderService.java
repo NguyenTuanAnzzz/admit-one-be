@@ -3,6 +3,7 @@ package com.an.admit_one.service;
 import com.an.admit_one.dto.request.CreateOrderItemRequest;
 import com.an.admit_one.dto.request.CreateOrderRequest;
 import com.an.admit_one.dto.response.CreateOrderResponse;
+import com.an.admit_one.dto.response.MessageResponse;
 import com.an.admit_one.dto.response.MyOrderResponse;
 import com.an.admit_one.dto.response.OrderItemResponse;
 import com.an.admit_one.entity.*;
@@ -237,5 +238,31 @@ public class OrderService {
                         ))
                         .toList()
         );
+    }
+
+    @Transactional
+    public MessageResponse cancelMyOrder(UUID orderId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
+
+        Order order = orderRepository.findMyOrder(orderId, principal.getUser().getId())
+                .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "Không tìm thấy đơn hàng"));
+
+        if (order.getStatus() != OrderStatus.PENDING) {
+            throw new AppException(HttpStatus.BAD_REQUEST, "Chỉ huỷ được đơn đang giữ vé");
+        }
+
+        // Đổi trạng thái trước: trả về 0 nghĩa là đơn vừa hết hạn hoặc vừa thanh toán ở chỗ khác
+        int updated = orderRepository.updateStatusIf(order.getId(), OrderStatus.PENDING, OrderStatus.CANCELLED);
+        if (updated == 0) {
+            throw new AppException(HttpStatus.CONFLICT, "Đơn vừa được cập nhật, vui lòng tải lại trang");
+        }
+
+        // Trả lại vé
+        for (OrderItem item : order.getItems()) {
+            ticketRepository.decreaseSoldQuantity(item.getTicket().getId(), item.getQuantity());
+        }
+
+        return new MessageResponse("Đã huỷ đơn, vé đã được trả lại");
     }
 }

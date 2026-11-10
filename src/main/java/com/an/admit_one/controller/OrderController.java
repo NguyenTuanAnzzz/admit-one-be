@@ -2,6 +2,7 @@ package com.an.admit_one.controller;
 
 import com.an.admit_one.dto.request.CreateOrderRequest;
 import com.an.admit_one.dto.response.CreateOrderResponse;
+import com.an.admit_one.dto.response.MessageResponse;
 import com.an.admit_one.dto.response.MyOrderResponse;
 import com.an.admit_one.enums.OrderStatus;
 import com.an.admit_one.service.OrderService;
@@ -50,6 +51,16 @@ public class OrderController {
             @PathVariable UUID orderId
     ) {
         MyOrderResponse response = orderService.getMyOrder(orderId);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @PatchMapping("/orders/{orderId}/cancel")
+    public ResponseEntity<MessageResponse> cancelMyOrder(
+            @PathVariable UUID orderId
+    ) {
+        MessageResponse response = orderService.cancelMyOrder(orderId);
 
         return ResponseEntity.ok(response);
     }
