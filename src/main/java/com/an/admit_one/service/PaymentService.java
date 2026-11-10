@@ -1,10 +1,12 @@
 package com.an.admit_one.service;
 
+import com.an.admit_one.entity.IssuedTicket;
 import com.an.admit_one.entity.Order;
 import com.an.admit_one.entity.OrderItem;
 import com.an.admit_one.entity.Payment;
 import com.an.admit_one.enums.OrderStatus;
 import com.an.admit_one.enums.PaymentStatus;
+import com.an.admit_one.repository.IssuedTicketRepository;
 import com.an.admit_one.repository.OrderRepository;
 import com.an.admit_one.repository.PaymentRepository;
 import com.an.admit_one.repository.TicketRepository;
@@ -13,8 +15,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.regex.Matcher;
@@ -34,6 +38,11 @@ public class PaymentService {
 
     @Autowired
     private TicketRepository ticketRepository;
+
+    @Autowired
+    private IssuedTicketRepository issuedTicketRepository;
+
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     /**
      * Xử lý một giao dịch tiền vào (webhook payOS gọi tới).
@@ -77,12 +86,14 @@ public class PaymentService {
             return "AMOUNT_TOO_LOW";
         }
 
-        // 5. Trường hợp thường: đơn đang giữ vé → PAID
+        // 5. Trường hợp thường
         if (order.getStatus() == OrderStatus.PENDING
                 && orderRepository.markPaidIf(order.getId(), OrderStatus.PENDING, Instant.now()) == 1) {
             payment.setStatus(PaymentStatus.SUCCESS);
+            issueTickets(order);
             return "PAID";
         }
+
 
         // 6. Trả tiền sau khi hết hạn hoặc đã huỷ: vé đã trả lại, thử giữ lại vé cho khách
         if (order.getStatus() == OrderStatus.EXPIRED || order.getStatus() == OrderStatus.CANCELLED) {
@@ -100,6 +111,7 @@ public class PaymentService {
             }
 
             if (enough && orderRepository.markPaidIf(order.getId(), previous, Instant.now()) == 1) {
+                issueTickets(order);
                 payment.setStatus(PaymentStatus.SUCCESS);
                 return "PAID_LATE_SEAT_RESTORED";
             }
@@ -115,5 +127,42 @@ public class PaymentService {
         // 7. Đơn đã PAID từ giao dịch khác (khách trả 2 lần): lần này cần hoàn tiền
         payment.setStatus(PaymentStatus.REFUND_REQUIRED);
         return "ALREADY_PAID_REFUND_REQUIRED";
+    }
+
+    /**
+     * Xuất vé cho đơn vừa PAID: mỗi vé một dòng issued_tickets, mỗi dòng một qrSecret ngẫu nhiên.
+     * Chạy trong transaction của handleTransfer: lỗi ở đây thì đơn cũng không thành PAID, không có đơn PAID mà thiếu vé.
+     */
+    private void issueTickets(Order order) {
+
+        // Chốt chặn: đơn đã có vé thì không xuất lần hai
+        if (issuedTicketRepository.existsByOrderId(order.getId())) {
+            return;
+        }
+
+        List<IssuedTicket> tickets = new ArrayList<>();
+        int index = 1;
+
+        for (OrderItem item : order.getItems()) {
+            for (int i = 0; i < item.getQuantity(); i++) {
+                tickets.add(IssuedTicket.builder()
+                        .order(order)
+                        .orderItem(item)
+                        .ticket(item.getTicket())
+                        .event(order.getEvent())
+                        .code(order.getCode() + "-" + index++)
+                        .qrSecret(newQrSecret())
+                        .build());
+            }
+        }
+
+        issuedTicketRepository.saveAll(tickets);
+    }
+
+    // 32 byte ngẫu nhiên → chuỗi 43 ký tự, không đoán được nên không ai tự tạo QR giả được
+    private String newQrSecret() {
+        byte[] bytes = new byte[32];
+        RANDOM.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 }

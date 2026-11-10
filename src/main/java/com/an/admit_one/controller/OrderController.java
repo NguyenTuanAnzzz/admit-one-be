@@ -2,6 +2,7 @@ package com.an.admit_one.controller;
 
 import com.an.admit_one.dto.request.CreateOrderRequest;
 import com.an.admit_one.dto.response.CreateOrderResponse;
+import com.an.admit_one.dto.response.IssuedTicketResponse;
 import com.an.admit_one.dto.response.MessageResponse;
 import com.an.admit_one.dto.response.MyOrderResponse;
 import com.an.admit_one.enums.OrderStatus;
@@ -73,6 +74,15 @@ public class OrderController {
             @PathVariable UUID orderId
     ) {
         return ResponseEntity.ok(orderService.startPayment(orderId));
+    }
+
+    // Vé đã xuất của đơn (kèm qrSecret để FE vẽ QR). Đơn chưa thanh toán thì trả danh sách rỗng
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @GetMapping("/orders/{orderId}/tickets")
+    public ResponseEntity<List<IssuedTicketResponse>> getMyTickets(
+            @PathVariable UUID orderId
+    ) {
+        return ResponseEntity.ok(orderService.getMyTickets(orderId));
     }
 
     // Đối soát với payOS khi webhook có thể bị lỡ. Trả { message: trạng thái link payOS }

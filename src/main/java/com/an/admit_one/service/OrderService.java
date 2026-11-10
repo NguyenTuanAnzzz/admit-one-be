@@ -3,6 +3,7 @@ package com.an.admit_one.service;
 import com.an.admit_one.dto.request.CreateOrderItemRequest;
 import com.an.admit_one.dto.request.CreateOrderRequest;
 import com.an.admit_one.dto.response.CreateOrderResponse;
+import com.an.admit_one.dto.response.IssuedTicketResponse;
 import com.an.admit_one.dto.response.MessageResponse;
 import com.an.admit_one.dto.response.MyOrderResponse;
 import com.an.admit_one.dto.response.OrderItemResponse;
@@ -64,6 +65,9 @@ public class OrderService {
 
     @Autowired
     private PaymentService paymentService;
+
+    @Autowired
+    private IssuedTicketRepository issuedTicketRepository;
 
     @Value("${app.fe-url}")
     private String feUrl;
@@ -324,6 +328,27 @@ public class OrderService {
 
         order.setCheckoutUrl(response.getCheckoutUrl());
         return Map.of("checkoutUrl", response.getCheckoutUrl());
+    }
+
+    // Vé đã xuất của một đơn (vé có QR). Chỉ chủ đơn xem được (findMyOrder lọc theo user). Đơn chưa PAID thì danh sách rỗng
+    @Transactional(readOnly = true)
+    public List<IssuedTicketResponse> getMyTickets(UUID orderId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
+
+        Order order = orderRepository.findMyOrder(orderId, principal.getUser().getId())
+                .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "Không tìm thấy đơn hàng"));
+
+        return issuedTicketRepository.findWithTicketByOrderId(order.getId()).stream()
+                .map(t -> new IssuedTicketResponse(
+                        t.getId(),
+                        t.getCode(),
+                        t.getTicket().getName(),
+                        t.getStatus().name(),
+                        t.getQrSecret(),
+                        t.getCheckedInAt()
+                ))
+                .toList();
     }
 
     /**
