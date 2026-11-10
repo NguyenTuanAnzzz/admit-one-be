@@ -117,7 +117,7 @@ public class OrderService {
         }
 
         orderRepository.save(order);
-        
+
         List<OrderItemResponse> itemResponses = order.getItems().stream()
                 .map(i -> new OrderItemResponse(
                         i.getTicket().getId(),
