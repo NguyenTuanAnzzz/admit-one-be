@@ -62,4 +62,16 @@ public interface OrderRepository extends JpaRepository<Order, UUID>, JpaSpecific
       AND o.user.id = :userId
     """)
     Optional<Order> findMyOrder(@Param("orderId") UUID orderId, @Param("userId") UUID userId);
+
+    @Modifying
+    @Query("""
+    UPDATE Order o
+    SET o.status = com.an.admit_one.enums.OrderStatus.PAID,
+        o.paidAt = :paidAt
+    WHERE o.id = :orderId
+      AND o.status = :currentStatus
+    """)
+    int markPaidIf(@Param("orderId") UUID orderId,
+                   @Param("currentStatus") OrderStatus currentStatus,
+                   @Param("paidAt") Instant paidAt);
 }

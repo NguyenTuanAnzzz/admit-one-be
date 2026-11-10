@@ -16,6 +16,7 @@ import com.an.admit_one.security.UserPrincipal;
 import com.an.admit_one.specification.OrderSpecifications;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -26,6 +27,13 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import vn.payos.PayOS;
+import vn.payos.model.v2.paymentRequests.CreatePaymentLinkRequest;
+import vn.payos.model.v2.paymentRequests.CreatePaymentLinkResponse;
+import vn.payos.exception.APIException;
+import vn.payos.model.v2.paymentRequests.PaymentLink;
+import vn.payos.model.v2.paymentRequests.Transaction;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -50,6 +58,15 @@ public class OrderService {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private PayOS payOS;
+
+    @Autowired
+    private PaymentService paymentService;
+
+    @Value("${app.fe-url}")
+    private String feUrl;
 
     private String generateOrderCode() {
         return "AO" + System.currentTimeMillis() + ThreadLocalRandom.current().nextInt(100, 1000);
@@ -267,5 +284,92 @@ public class OrderService {
         }
 
         return new MessageResponse("Đã huỷ đơn, vé đã được trả lại");
+    }
+
+    @Transactional
+    public Map<String, String> startPayment(UUID orderId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
+
+        Order order = orderRepository.findMyOrder(orderId, principal.getUser().getId())
+                .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "Không tìm thấy đơn hàng"));
+
+        long remainingSeconds = Math.max(0, Instant.now().until(order.getExpiresAt(), ChronoUnit.SECONDS));
+        if (order.getStatus() != OrderStatus.PENDING || remainingSeconds == 0) {
+            throw new AppException(HttpStatus.BAD_REQUEST, "Đơn không còn chờ thanh toán");
+        }
+
+        // Đã tạo link rồi: trả lại link cũ
+        if (order.getCheckoutUrl() != null) {
+            return Map.of("checkoutUrl", order.getCheckoutUrl());
+        }
+
+        // payOS cần orderCode là số: lấy phần số trong mã đơn (AO1794296491047238 → 1794296491047238)
+        long payosOrderCode = Long.parseLong(order.getCode().substring(2));
+        // Trang kết quả thanh toán của FE. payOS tự gắn thêm code, id, status, orderCode vào sau
+        String back = feUrl + "/orders/" + order.getId() + "/payment";
+
+        CreatePaymentLinkRequest request = CreatePaymentLinkRequest.builder()
+                .orderCode(payosOrderCode)
+                .amount(order.getTotalAmount().longValue())
+                // payOS giới hạn mô tả ngắn: chỉ ghi mã đơn
+                .description(order.getCode())
+                .returnUrl(back + "?result=success")
+                .cancelUrl(back + "?result=cancel")
+                // Link hết hạn cùng lúc với đơn giữ vé
+                .expiredAt(order.getExpiresAt().getEpochSecond())
+                .build();
+
+        CreatePaymentLinkResponse response = payOS.paymentRequests().create(request);
+
+        order.setCheckoutUrl(response.getCheckoutUrl());
+        return Map.of("checkoutUrl", response.getCheckoutUrl());
+    }
+
+    /**
+     * Đối soát với payOS: hỏi payOS link của đơn đã có giao dịch nào chưa, có thì ghi nhận như webhook.
+     * Dùng khi webhook bị lỡ (ngrok tắt, mạng lỗi...). Mã giao dịch "PAYOS-" + reference giống hệt webhook,
+     * nên webhook và đối soát cùng về một giao dịch thì vẫn chỉ ghi 1 lần (cột UNIQUE gateway_txn_ref).
+     *
+     * Không đặt @Transactional ở đây: mỗi lần gọi paymentService.handleTransfer chạy transaction riêng,
+     * một giao dịch bị trùng (rollback) không kéo theo giao dịch khác.
+     */
+    public MessageResponse syncPayment(UUID orderId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
+
+        Order order = orderRepository.findMyOrder(orderId, principal.getUser().getId())
+                .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "Không tìm thấy đơn hàng"));
+
+        // Đã trả rồi, hoặc chưa từng tạo link payOS: không có gì để hỏi
+        if (order.getStatus() == OrderStatus.PAID || order.getCheckoutUrl() == null) {
+            return new MessageResponse(order.getStatus().name());
+        }
+
+        long payosOrderCode = Long.parseLong(order.getCode().substring(2));
+        PaymentLink link;
+        try {
+            link = payOS.paymentRequests().get(payosOrderCode);
+        } catch (APIException e) {
+            throw new AppException(HttpStatus.BAD_GATEWAY, "Không kiểm tra được thanh toán: " + e.getMessage());
+        }
+
+        if (link.getTransactions() != null) {
+            for (Transaction tx : link.getTransactions()) {
+                try {
+                    paymentService.handleTransfer(
+                            "PAYOS",
+                            "PAYOS-" + tx.getReference(),
+                            BigDecimal.valueOf(tx.getAmount()),
+                            order.getCode(),
+                            tx.toString()
+                    );
+                } catch (DataIntegrityViolationException e) {
+                    // Webhook vừa ghi nhận cùng giao dịch này: bỏ qua
+                }
+            }
+        }
+
+        return new MessageResponse(String.valueOf(link.getStatus()));
     }
 }

@@ -15,6 +15,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -63,5 +64,23 @@ public class OrderController {
         MessageResponse response = orderService.cancelMyOrder(orderId);
 
         return ResponseEntity.ok(response);
+    }
+
+    // Tạo (hoặc lấy lại) link thanh toán payOS cho đơn đang giữ vé. Trả { checkoutUrl }
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @PostMapping("/orders/{orderId}/pay")
+    public ResponseEntity<Map<String, String>> pay(
+            @PathVariable UUID orderId
+    ) {
+        return ResponseEntity.ok(orderService.startPayment(orderId));
+    }
+
+    // Đối soát với payOS khi webhook có thể bị lỡ. Trả { message: trạng thái link payOS }
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @PostMapping("/orders/{orderId}/payment/sync")
+    public ResponseEntity<MessageResponse> syncPayment(
+            @PathVariable UUID orderId
+    ) {
+        return ResponseEntity.ok(orderService.syncPayment(orderId));
     }
 }

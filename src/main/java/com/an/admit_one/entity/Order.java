@@ -57,6 +57,9 @@ public class Order {
     @Column(name = "paid_at")
     private Instant paidAt;
 
+    @Column(name = "checkout_url", length = 500)
+    private String checkoutUrl;
+
     @Builder.Default
     @OneToMany(
             mappedBy = "order",
