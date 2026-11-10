@@ -5,6 +5,7 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.mail.MailPreparationException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -12,6 +13,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.util.HtmlUtils;
 
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 public class EmailService {
@@ -74,16 +78,27 @@ public class EmailService {
         send(toEmail, content);
     }
 
+    // Email thường (OTP...): không có phần chèn thêm, không có ảnh
     public void send(String toEmail, EmailContent content) {
+        send(toEmail, content, null, Map.of());
+    }
+
+    // extraHtml: HTML chèn vào chỗ {{extra}}. inlinePngs: ảnh nhúng trong email, key là cid dùng trong <img src="cid:...">
+    private void send(String toEmail, EmailContent content, String extraHtml, Map<String, byte[]> inlinePngs) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
-            // multipart = true: gửi kèm bản chữ thường cho trình đọc mail không hiển thị HTML
+            // multipart = true: gửi kèm bản chữ thường cho trình đọc mail không hiển thị HTML, và cho nhúng ảnh
             MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
 
             helper.setFrom(fromEmail);
             helper.setTo(toEmail);
             helper.setSubject(content.subject());
-            helper.setText(renderText(content), renderHtml(content));
+            helper.setText(renderText(content), renderHtml(content, extraHtml));
+
+            // Ảnh phải thêm SAU setText. Ảnh nhúng (cid) hiện ngay khi mở mail, Gmail không chặn như ảnh từ link ngoài
+            for (Map.Entry<String, byte[]> image : inlinePngs.entrySet()) {
+                helper.addInline(image.getKey(), new ByteArrayResource(image.getValue()), "image/png");
+            }
 
             mailSender.send(message);
         } catch (MessagingException e) {
@@ -135,6 +150,7 @@ public class EmailService {
                           <p style="margin:0;font-size:16px;line-height:1.55;color:#1d1a17;">{{intro}}</p>
                           {{code}}
                           {{note}}
+                          {{extra}}
                           <hr style="margin:32px 0 20px;border:0;border-top:1px solid #e4e1dc;">
                           <p style="margin:0;font-size:14px;line-height:1.5;color:#67615b;">{{ignoreLine}}</p>
                           <p style="margin:16px 0 0;font-size:14px;line-height:1.5;color:#1d1a17;">
@@ -164,10 +180,12 @@ public class EmailService {
             <p style="margin:20px 0 0;padding:12px 16px;background-color:#fdebe6;border-radius:8px;font-size:14px;line-height:1.5;color:#b2331c;">{{value}}</p>
             """;
 
-    private String renderHtml(EmailContent c) {
+    // extraHtml do chính mình ghép (giá trị bên trong đã escape) nên không escape lại
+    private String renderHtml(EmailContent c, String extraHtml) {
         return LAYOUT
                 .replace("{{code}}", block(CODE_BLOCK, c.code()))
                 .replace("{{note}}", block(NOTE_BLOCK, c.note()))
+                .replace("{{extra}}", extraHtml == null ? "" : extraHtml)
                 .replace("{{subject}}", escape(c.subject()))
                 .replace("{{heading}}", escape(c.heading()))
                 .replace("{{intro}}", escape(c.intro()))
@@ -184,4 +202,64 @@ public class EmailService {
     private String escape(String value) {
         return value == null ? "" : HtmlUtils.htmlEscape(value, StandardCharsets.UTF_8.name());
     }
+
+    // ===== Email vé điện tử =====
+
+    // Một vé trong email: mã vé, tên loại vé, chuỗi in vào QR
+    public record TicketLine(String code, String ticketName, String qrSecret) {
+    }
+
+    @Autowired
+    private QrCodeService qrCodeService;
+
+    // Email vé điện tử: mỗi vé một khối, có ảnh QR nhúng trong email (cid)
+    public void sendTicketsEmail(String toEmail, String orderCode, String eventName,
+                                 String eventTime, String venue, List<TicketLine> tickets) {
+
+        EmailContent content = new EmailContent(
+                "Vé điện tử đơn " + orderCode + " · Admit One",
+                "Vé của bạn đã sẵn sàng",
+                "Cảm ơn bạn đã thanh toán đơn " + orderCode + ". Sự kiện " + eventName
+                        + " diễn ra lúc " + eventTime + " tại " + venue
+                        + ". Đưa mã QR bên dưới cho nhân viên soát vé tại cửa.",
+                null,
+                "Mỗi mã QR chỉ dùng được một lần. Không chia sẻ ảnh mã QR cho người khác.",
+                "Bạn cũng xem lại và in vé trong mục Đơn của tôi trên Admit One.",
+                "Bạn nhận được email này vì đã mua vé trên Admit One bằng tài khoản dùng địa chỉ này."
+        );
+
+        StringBuilder html = new StringBuilder();
+        Map<String, byte[]> images = new LinkedHashMap<>();
+
+        for (int i = 0; i < tickets.size(); i++) {
+            TicketLine t = tickets.get(i);
+            String cid = "qr-" + (i + 1);
+            // Ảnh 360px hiện ở 180px: màn hình điện thoại nét cao vẫn sắc, máy quét dễ đọc
+            images.put(cid, qrCodeService.toPng(t.qrSecret(), 360));
+
+            html.append(TICKET_BLOCK
+                    .replace("{{index}}", String.valueOf(i + 1))
+                    .replace("{{total}}", String.valueOf(tickets.size()))
+                    .replace("{{ticketName}}", escape(t.ticketName()))
+                    .replace("{{code}}", escape(t.code()))
+                    .replace("{{cid}}", cid)
+                    .replace("{{fontDisplay}}", FONT_DISPLAY));
+        }
+
+        send(toEmail, content, html.toString(), images);
+    }
+
+    // Khối một vé. Dùng table thay div vì Outlook và nhiều trình đọc mail hiển thị div lộn xộn
+    private static final String TICKET_BLOCK = """
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 0;border:1px solid #e4e1dc;border-radius:12px;">
+              <tr>
+                <td align="center" style="padding:20px 16px;">
+                  <p style="margin:0;font-size:13px;color:#67615b;">Vé {{index}}/{{total}}</p>
+                  <p style="margin:4px 0 16px;font-family:{{fontDisplay}};font-size:20px;font-weight:800;color:#cf3a20;">{{ticketName}}</p>
+                  <img src="cid:{{cid}}" width="180" height="180" alt="Mã QR vé {{code}}" style="display:block;border:0;">
+                  <p style="margin:12px 0 0;font-family:monospace;font-size:13px;color:#67615b;">{{code}}</p>
+                </td>
+              </tr>
+            </table>
+            """;
 }

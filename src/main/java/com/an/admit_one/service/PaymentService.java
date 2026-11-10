@@ -1,11 +1,13 @@
 package com.an.admit_one.service;
 
+import com.an.admit_one.entity.EmailOutbox;
 import com.an.admit_one.entity.IssuedTicket;
 import com.an.admit_one.entity.Order;
 import com.an.admit_one.entity.OrderItem;
 import com.an.admit_one.entity.Payment;
 import com.an.admit_one.enums.OrderStatus;
 import com.an.admit_one.enums.PaymentStatus;
+import com.an.admit_one.repository.EmailOutboxRepository;
 import com.an.admit_one.repository.IssuedTicketRepository;
 import com.an.admit_one.repository.OrderRepository;
 import com.an.admit_one.repository.PaymentRepository;
@@ -41,6 +43,9 @@ public class PaymentService {
 
     @Autowired
     private IssuedTicketRepository issuedTicketRepository;
+
+    @Autowired
+    private EmailOutboxRepository emailOutboxRepository;
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -157,6 +162,16 @@ public class PaymentService {
         }
 
         issuedTicketRepository.saveAll(tickets);
+
+        // Chưa gửi email ngay: chỉ ghi "cần gửi" vào outbox, cùng transaction với vé.
+        // EmailOutboxScheduler gửi sau khi commit, rollback thì dòng này cũng mất theo
+        if (!emailOutboxRepository.existsByOrderIdAndType(order.getId(), EmailOutbox.TYPE_TICKETS)) {
+            emailOutboxRepository.save(EmailOutbox.builder()
+                    .order(order)
+                    .type(EmailOutbox.TYPE_TICKETS)
+                    .toEmail(order.getUser().getEmail())
+                    .build());
+        }
     }
 
     // 32 byte ngẫu nhiên → chuỗi 43 ký tự, không đoán được nên không ai tự tạo QR giả được
