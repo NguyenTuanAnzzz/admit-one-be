@@ -20,4 +20,7 @@ public class CreateOrderResponse {
     private String status;
     private Instant expiresAt;
     private List<OrderItemResponse> items;
+
+    // Số giây còn giữ vé, tính bằng giờ server lúc trả response. FE đếm ngược từ số này, không so expiresAt với giờ máy khách
+    private long remainingSeconds;
 }

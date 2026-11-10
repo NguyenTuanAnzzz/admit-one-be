@@ -159,11 +159,12 @@ public class OrderService {
                 order.getTotalAmount(),
                 order.getStatus().name(),
                 order.getExpiresAt(),
-                itemResponses
+                itemResponses,
+                Math.max(0, Instant.now().until(order.getExpiresAt(), ChronoUnit.SECONDS))
         );
     }
 
-
+    @Transactional(readOnly = true)
     public Page<MyOrderResponse> getMyOrders(String keyword, OrderStatus status, int page, int size) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
@@ -203,7 +204,8 @@ public class OrderService {
                                 i.getUnitPrice(),
                                 i.getUnitPrice().multiply(BigDecimal.valueOf(i.getQuantity()))
                         ))
-                        .toList()
+                        .toList(),
+                Math.max(0, Instant.now().until(order.getExpiresAt(), ChronoUnit.SECONDS))
         ));
     }
 
@@ -236,7 +238,8 @@ public class OrderService {
                                 i.getUnitPrice(),
                                 i.getUnitPrice().multiply(BigDecimal.valueOf(i.getQuantity()))
                         ))
-                        .toList()
+                        .toList(),
+                Math.max(0, Instant.now().until(order.getExpiresAt(), ChronoUnit.SECONDS))
         );
     }
 
