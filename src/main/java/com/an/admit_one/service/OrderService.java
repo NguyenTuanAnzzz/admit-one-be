@@ -6,12 +6,10 @@ import com.an.admit_one.dto.response.CreateOrderResponse;
 import com.an.admit_one.dto.response.OrderItemResponse;
 import com.an.admit_one.entity.*;
 import com.an.admit_one.enums.EventStatus;
+import com.an.admit_one.enums.OrderStatus;
 import com.an.admit_one.enums.TicketStatus;
 import com.an.admit_one.exception.AppException;
-import com.an.admit_one.repository.EventRepository;
-import com.an.admit_one.repository.OrderItemRepository;
-import com.an.admit_one.repository.OrderRepository;
-import com.an.admit_one.repository.TicketRepository;
+import com.an.admit_one.repository.*;
 import com.an.admit_one.security.UserPrincipal;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,6 +40,9 @@ public class OrderService {
     @Autowired
     private TicketRepository ticketRepository;
 
+    @Autowired
+    private UserRepository userRepository;
+
     private String generateOrderCode() {
         return "AO" + System.currentTimeMillis() + ThreadLocalRandom.current().nextInt(100, 1000);
     }
@@ -50,7 +51,9 @@ public class OrderService {
     public CreateOrderResponse createOrder(@Valid CreateOrderRequest request) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
-        User user = principal.getUser();
+        // Khoá dòng user: hai đơn của cùng một người phải chờ nhau, không đếm trùng số vé đã giữ
+        User user = userRepository.findByIdForUpdate(principal.getUser().getId())
+                .orElseThrow(() -> new AppException(HttpStatus.UNAUTHORIZED, "Tài khoản không tồn tại"));
 
         Event event = eventRepository.findById(request.getEventId())
                 .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "Không tìm thấy sự kiện"));
@@ -70,6 +73,18 @@ public class OrderService {
 
         if (totalQuantity > 4) {
             throw new AppException(HttpStatus.BAD_REQUEST, "Mỗi đơn tối đa 4 vé");
+        }
+
+        long alreadyHeld = orderItemRepository.sumQuantityByUserAndEvent(
+                user.getId(),
+                event.getId(),
+                List.of(OrderStatus.PENDING, OrderStatus.PAID)
+        );
+
+        if (alreadyHeld + totalQuantity > 4) {
+            long canBuy = Math.max(0, 4 - alreadyHeld);
+            throw new AppException(HttpStatus.BAD_REQUEST,
+                    "Bạn đã có " + alreadyHeld + " vé cho sự kiện này, chỉ đặt thêm được " + canBuy + " vé");
         }
 
         BigDecimal totalAmount = BigDecimal.ZERO;
