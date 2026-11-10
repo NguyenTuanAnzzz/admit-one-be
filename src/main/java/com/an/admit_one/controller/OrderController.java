@@ -14,6 +14,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api")
@@ -41,5 +42,15 @@ public class OrderController {
             @RequestParam(defaultValue = "10") int size
     ) {
         return ResponseEntity.ok(orderService.getMyOrders(keyword, status, page, size));
+    }
+
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @GetMapping("/orders/{orderId}")
+    public ResponseEntity<MyOrderResponse> getMyOrder(
+            @PathVariable UUID orderId
+    ) {
+        MyOrderResponse response = orderService.getMyOrder(orderId);
+
+        return ResponseEntity.ok(response);
     }
 }

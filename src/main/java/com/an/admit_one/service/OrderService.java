@@ -205,4 +205,37 @@ public class OrderService {
                         .toList()
         ));
     }
+
+    @Transactional(readOnly = true)
+    public MyOrderResponse getMyOrder(UUID orderId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
+
+        Order order = orderRepository.findMyOrder(orderId, principal.getUser().getId())
+                .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "Không tìm thấy đơn hàng"));
+
+        return new MyOrderResponse(
+                order.getId(),
+                order.getCode(),
+                order.getStatus().name(),
+                order.getTotalAmount(),
+                order.getExpiresAt(),
+                order.getCreatedAt(),
+                order.getPaidAt(),
+                order.getEvent().getId(),
+                order.getEvent().getName(),
+                order.getEvent().getPosterUrl(),
+                order.getEvent().getStartsAt(),
+                order.getEvent().getVenue(),
+                order.getItems().stream()
+                        .map(i -> new OrderItemResponse(
+                                i.getTicket().getId(),
+                                i.getTicket().getName(),
+                                i.getQuantity(),
+                                i.getUnitPrice(),
+                                i.getUnitPrice().multiply(BigDecimal.valueOf(i.getQuantity()))
+                        ))
+                        .toList()
+        );
+    }
 }

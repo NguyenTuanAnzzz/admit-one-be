@@ -54,4 +54,12 @@ public interface OrderRepository extends JpaRepository<Order, UUID>, JpaSpecific
                              @Param("status") OrderStatus status,
                              @Param("pattern") String pattern,
                              Pageable pageable);
+
+    @Query("""
+    SELECT o FROM Order o
+    JOIN FETCH o.event
+    WHERE o.id = :orderId
+      AND o.user.id = :userId
+    """)
+    Optional<Order> findMyOrder(@Param("orderId") UUID orderId, @Param("userId") UUID userId);
 }
