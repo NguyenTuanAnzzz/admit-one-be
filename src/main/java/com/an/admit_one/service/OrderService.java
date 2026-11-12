@@ -69,6 +69,9 @@ public class OrderService {
     @Autowired
     private IssuedTicketRepository issuedTicketRepository;
 
+    @Autowired
+    private RateLimitService rateLimitService;
+
     @Value("${app.fe-url}")
     private String feUrl;
 
@@ -80,6 +83,10 @@ public class OrderService {
     public CreateOrderResponse createOrder(@Valid CreateOrderRequest request) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
+
+        // Tối đa 5 lần tạo đơn / 60 giây / tài khoản, chặn trước khi chạm DB
+        rateLimitService.check("rl:create-order:" + principal.getUser().getId(), 5, 60);
+
         // Khoá dòng user: hai đơn của cùng một người phải chờ nhau, không đếm trùng số vé đã giữ
         User user = userRepository.findByIdForUpdate(principal.getUser().getId())
                 .orElseThrow(() -> new AppException(HttpStatus.UNAUTHORIZED, "Tài khoản không tồn tại"));
