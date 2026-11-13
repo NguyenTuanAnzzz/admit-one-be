@@ -26,8 +26,8 @@ public class OrderScheduler {
     @Autowired
     private TicketStockService ticketStockService;
 
-    // Mỗi 30 giây: huỷ đơn PENDING đã quá hạn giữ vé, trả vé lại cho người khác mua
-    @Scheduled(fixedDelay = 30_000)
+    // Mỗi 2 giây: huỷ đơn PENDING đã quá hạn giữ vé, trả vé lại cho người khác mua (spec 5.2: sai số ±2s)
+    @Scheduled(fixedDelay = 2_000)
     @Transactional
     public void expireOrders() {
 
