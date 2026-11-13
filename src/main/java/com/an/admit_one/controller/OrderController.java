@@ -1,10 +1,7 @@
 package com.an.admit_one.controller;
 
 import com.an.admit_one.dto.request.CreateOrderRequest;
-import com.an.admit_one.dto.response.CreateOrderResponse;
-import com.an.admit_one.dto.response.IssuedTicketResponse;
-import com.an.admit_one.dto.response.MessageResponse;
-import com.an.admit_one.dto.response.MyOrderResponse;
+import com.an.admit_one.dto.response.*;
 import com.an.admit_one.enums.OrderStatus;
 import com.an.admit_one.service.OrderService;
 import jakarta.validation.Valid;
@@ -92,5 +89,24 @@ public class OrderController {
             @PathVariable UUID orderId
     ) {
         return ResponseEntity.ok(orderService.syncPayment(orderId));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/admin/orders")
+    public ResponseEntity<Page<AdminOrderResponse>> getAdminOrders(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) OrderStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        return ResponseEntity.ok(orderService.getAdminOrders(keyword, status, page, size));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/admin/orders/{orderId}/payments")
+    public ResponseEntity<List<PaymentLogResponse>> getOrderPayments(
+            @PathVariable UUID orderId
+    ) {
+        return ResponseEntity.ok(orderService.getOrderPayments(orderId));
     }
 }

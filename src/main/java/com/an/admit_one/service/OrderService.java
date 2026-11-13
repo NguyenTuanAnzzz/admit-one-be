@@ -2,11 +2,7 @@ package com.an.admit_one.service;
 
 import com.an.admit_one.dto.request.CreateOrderItemRequest;
 import com.an.admit_one.dto.request.CreateOrderRequest;
-import com.an.admit_one.dto.response.CreateOrderResponse;
-import com.an.admit_one.dto.response.IssuedTicketResponse;
-import com.an.admit_one.dto.response.MessageResponse;
-import com.an.admit_one.dto.response.MyOrderResponse;
-import com.an.admit_one.dto.response.OrderItemResponse;
+import com.an.admit_one.dto.response.*;
 import com.an.admit_one.entity.*;
 import com.an.admit_one.enums.EventStatus;
 import com.an.admit_one.enums.OrderStatus;
@@ -74,6 +70,9 @@ public class OrderService {
 
     @Autowired
     private RateLimitService rateLimitService;
+
+    @Autowired
+    private PaymentRepository paymentRepository;
 
     @Value("${app.fe-url}")
     private String feUrl;
@@ -288,6 +287,52 @@ public class OrderService {
                         .toList(),
                 Math.max(0, Instant.now().until(order.getExpiresAt(), ChronoUnit.SECONDS))
         );
+    }
+
+    public Page<AdminOrderResponse> getAdminOrders(String keyword, OrderStatus status, int page, int size) {
+        Specification<Order> spec = Specification
+                .where(OrderSpecifications.hasStatus(status))
+                .and(OrderSpecifications.search(keyword))
+                .and(OrderSpecifications.fetchEvent());
+
+        Pageable pageable = PageRequest.of(
+                Math.max(page, 0),
+                Math.min(Math.max(size, 1), 50),
+                Sort.by(Sort.Direction.DESC, "createdAt")
+        );
+
+        Page<Order> orderPage = orderRepository.findAll(spec, pageable);
+
+        return orderPage.map(order -> new AdminOrderResponse(
+                order.getId(),
+                order.getCode(),
+                order.getStatus().name(),
+                order.getTotalAmount(),
+                order.getCreatedAt(),
+                order.getPaidAt(),
+                order.getUser().getFullName(),
+                order.getUser().getEmail(),
+                order.getEvent().getName()
+        ));
+    }
+
+
+    public List<PaymentLogResponse> getOrderPayments(UUID orderId) {
+        if (!orderRepository.existsById(orderId)) {
+            throw new AppException(HttpStatus.NOT_FOUND, "Không tìm thấy đơn hàng");
+        }
+
+        return paymentRepository.findByOrderIdOrderByCreatedAtDesc(orderId).stream()
+                .map(p -> new PaymentLogResponse(
+                        p.getId(),
+                        p.getGateway(),
+                        p.getGatewayTxnRef(),
+                        p.getAmount(),
+                        p.getStatus().name(),
+                        p.getRawPayload(),
+                        p.getCreatedAt()
+                ))
+                .toList();
     }
 
     @Transactional
