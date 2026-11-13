@@ -37,6 +37,9 @@ public class EventService {
     @Autowired
     private TicketRepository ticketRepository;
 
+    @Autowired
+    private TicketBroadcastService ticketBroadcastService;
+
     public EventResponse createEvent(EventRequest request) {
         if (eventRepository.existsByNameIgnoreCaseAndStartsAt(
                 request.getName(),
@@ -497,7 +500,8 @@ public class EventService {
                 event.getStartsAt(),
                 event.getSaleOpensAt(),
                 event.getStatus(),
-                ticketResponses
+                ticketResponses,
+                ticketBroadcastService.currentSeq(eventId)   // ← thêm dòng này
         );
     }
 }

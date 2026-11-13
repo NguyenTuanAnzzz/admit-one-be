@@ -58,6 +58,9 @@ public class OrderService {
     private TicketRepository ticketRepository;
 
     @Autowired
+    private TicketStockService ticketStockService;
+
+    @Autowired
     private UserRepository userRepository;
 
     @Autowired
@@ -139,7 +142,7 @@ public class OrderService {
                 throw new AppException(HttpStatus.BAD_REQUEST, "Loại vé " + ticket.getName() + " chỉ còn " + remaining + " vé");
             }
 
-            int updated = ticketRepository.increaseSoldQuantity(ticket.getId(), item.getQuantity());
+            int updated = ticketStockService.increase(ticket.getId(), item.getQuantity());
             if (updated == 0) {
                 throw new AppException(HttpStatus.CONFLICT, "Loại vé " + ticket.getName() + " vừa hết, vui lòng chọn lại");
             }
@@ -291,7 +294,7 @@ public class OrderService {
 
         // Trả lại vé
         for (OrderItem item : order.getItems()) {
-            ticketRepository.decreaseSoldQuantity(item.getTicket().getId(), item.getQuantity());
+            ticketStockService.decrease(item.getTicket().getId(), item.getQuantity());
         }
 
         return new MessageResponse("Đã huỷ đơn, vé đã được trả lại");

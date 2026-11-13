@@ -42,6 +42,9 @@ public class PaymentService {
     private TicketRepository ticketRepository;
 
     @Autowired
+    private TicketStockService ticketStockService;
+
+    @Autowired
     private IssuedTicketRepository issuedTicketRepository;
 
     @Autowired
@@ -107,7 +110,7 @@ public class PaymentService {
             boolean enough = true;
 
             for (OrderItem item : order.getItems()) {
-                if (ticketRepository.increaseSoldQuantity(item.getTicket().getId(), item.getQuantity()) == 1) {
+                if (ticketStockService.increase(item.getTicket().getId(), item.getQuantity()) == 1) {
                     reserved.add(item);
                 } else {
                     enough = false;
@@ -123,7 +126,7 @@ public class PaymentService {
 
             // Không đủ vé: trả lại phần vừa giữ, đánh dấu cần hoàn tiền
             for (OrderItem item : reserved) {
-                ticketRepository.decreaseSoldQuantity(item.getTicket().getId(), item.getQuantity());
+                ticketStockService.decrease(item.getTicket().getId(), item.getQuantity());
             }
             payment.setStatus(PaymentStatus.REFUND_REQUIRED);
             return "PAID_LATE_REFUND_REQUIRED";

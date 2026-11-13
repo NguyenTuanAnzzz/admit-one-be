@@ -27,4 +27,5 @@ public class PublicEventDetailResponse {
     private EventStatus status;
 
     private List<PublicTicketResponse> tickets;
+    private long ticketsVersion;
 }

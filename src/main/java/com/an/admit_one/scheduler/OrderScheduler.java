@@ -5,6 +5,7 @@ import com.an.admit_one.entity.OrderItem;
 import com.an.admit_one.enums.OrderStatus;
 import com.an.admit_one.repository.OrderRepository;
 import com.an.admit_one.repository.TicketRepository;
+import com.an.admit_one.service.TicketStockService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -21,6 +22,9 @@ public class OrderScheduler {
 
     @Autowired
     private TicketRepository ticketRepository;
+
+    @Autowired
+    private TicketStockService ticketStockService;
 
     // Mỗi 30 giây: huỷ đơn PENDING đã quá hạn giữ vé, trả vé lại cho người khác mua
     @Scheduled(fixedDelay = 30_000)
@@ -45,7 +49,7 @@ public class OrderScheduler {
 
             // Trả lại từng loại vé trong đơn
             for (OrderItem item : order.getItems()) {
-                ticketRepository.decreaseSoldQuantity(
+                ticketStockService.decrease(
                         item.getTicket().getId(),
                         item.getQuantity()
                 );
