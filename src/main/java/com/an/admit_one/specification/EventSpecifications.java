@@ -134,4 +134,10 @@ public class EventSpecifications {
             return cb.equal(root.get("status"), status);
         };
     }
+
+    public static Specification<Event> checkinEligible() {
+        return (root, query, cb) -> root.get("status").in(
+                EventStatus.ON_SALE, EventStatus.SOLD_OUT, EventStatus.ENDED
+        );
+    }
 }
