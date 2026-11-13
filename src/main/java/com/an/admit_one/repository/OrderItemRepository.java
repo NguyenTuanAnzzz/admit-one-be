@@ -25,4 +25,7 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, UUID> {
     long sumQuantityByUserAndEvent(@Param("userId") UUID userId,
                                    @Param("eventId") UUID eventId,
                                    @Param("statuses") List<OrderStatus> statuses);
+
+    @Query("SELECT COALESCE(SUM(i.quantity), 0) FROM OrderItem i WHERE i.order.status = :status")
+    long sumQuantityByOrderStatus(@Param("status") OrderStatus status);
 }

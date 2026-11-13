@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -74,4 +75,28 @@ public interface OrderRepository extends JpaRepository<Order, UUID>, JpaSpecific
     int markPaidIf(@Param("orderId") UUID orderId,
                    @Param("currentStatus") OrderStatus currentStatus,
                    @Param("paidAt") Instant paidAt);
+
+    @Query("SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o WHERE o.status = :status")
+    BigDecimal sumTotalAmountByStatus(@Param("status") OrderStatus status);
+
+    @Query(value = """
+        SELECT CAST(paid_at AS date) AS day, COALESCE(SUM(total_amount), 0) AS revenue
+        FROM orders
+        WHERE status = 'PAID' AND paid_at >= :from
+        GROUP BY day
+        ORDER BY day
+        """, nativeQuery = true)
+    List<Object[]> sumRevenueByDay(@Param("from") Instant from);
+
+    @Query("SELECT o.status, COUNT(o) FROM Order o GROUP BY o.status")
+    List<Object[]> countOrdersByStatus();
+
+    @Query("""
+        SELECT o.event.name, COALESCE(SUM(o.totalAmount), 0)
+        FROM Order o
+        WHERE o.status = 'PAID'
+        GROUP BY o.event.name
+        ORDER BY SUM(o.totalAmount) DESC
+        """)
+    List<Object[]> sumRevenueByEvent(Pageable pageable);
 }

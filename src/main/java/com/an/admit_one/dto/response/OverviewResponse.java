@@ -1,0 +1,14 @@
+package com.an.admit_one.dto.response;
+
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+
+import java.math.BigDecimal;
+
+@Getter
+@AllArgsConstructor
+public class OverviewResponse {
+    private BigDecimal totalRevenue;
+    private long ticketsSold;
+    private long ticketsHeld;
+}
