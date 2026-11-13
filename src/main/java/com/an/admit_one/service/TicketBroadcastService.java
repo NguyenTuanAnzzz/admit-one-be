@@ -27,6 +27,22 @@ public class TicketBroadcastService {
         return raw == null ? 0L : Long.parseLong(raw);
     }
 
+    private static final String STOCK_KEY_PREFIX = "{event:";
+
+    public String stockKey(UUID eventId, UUID ticketId) {
+        return STOCK_KEY_PREFIX + eventId + "}:ticket:" + ticketId + ":available";
+    }
+
+    public void syncCache(UUID eventId, UUID ticketId, int available) {
+        redisTemplate.opsForValue().set(stockKey(eventId, ticketId), String.valueOf(available));
+    }
+
+    public int warmUpCache(UUID eventId, Ticket ticket) {
+        int available = Math.max(0, ticket.getQuantity() - ticket.getSoldQuantity());
+        syncCache(eventId, ticket.getId(), available);
+        return available;
+    }
+
     public void publish(UUID ticketId){
         Ticket ticket = ticketRepository.findById(ticketId).orElse(null);
         if(ticket == null){
@@ -36,6 +52,7 @@ public class TicketBroadcastService {
         UUID eventId = ticket.getEvent().getId();
         long seq = redisTemplate.opsForValue().increment(SEQ_KEY_PREFIX + eventId);
         int available = Math.max(0, ticket.getQuantity() - ticket.getSoldQuantity());
+        syncCache(eventId, ticketId, available);
         var message = new TicketUpdateMessage(
                 eventId,
                 seq,

@@ -12,4 +12,9 @@ public class RedisConfig {
     public RedisScript<Long> rateLimitScript() {
         return RedisScript.of(new ClassPathResource("lua/rate_limit.lua"), Long.class);
     }
+
+    @Bean
+    public RedisScript<String> ticketStockScript() {
+        return RedisScript.of(new ClassPathResource("lua/ticket_stock.lua"), String.class);
+    }
 }

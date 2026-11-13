@@ -126,6 +126,22 @@ public class OrderService {
                     "Bạn đã có " + alreadyHeld + " vé cho sự kiện này, chỉ đặt thêm được " + canBuy + " vé");
         }
 
+        // Bài 5.1 - fast path: kiểm tra + giữ tạm trên Redis trước khi chạm Postgres.
+        // Đoạn Postgres phía dưới vẫn giữ nguyên làm lớp chốt cuối cùng (nguồn sự thật).
+        Map<UUID, Integer> reserveRequest = new LinkedHashMap<>();
+        for (CreateOrderItemRequest item : request.getItems()) {
+            reserveRequest.put(item.getTicketId(), item.getQuantity());
+        }
+
+        String reserveResult = ticketStockService.tryReserve(event.getId(), reserveRequest);
+        if (!"OK".equals(reserveResult) && !"MISS".equals(reserveResult)) {
+            int badIndex = Integer.parseInt(reserveResult) - 1;
+            UUID badTicketId = new ArrayList<>(reserveRequest.keySet()).get(badIndex);
+            Ticket badTicket = ticketRepository.findById(badTicketId).orElse(null);
+            String name = badTicket != null ? badTicket.getName() : "đã chọn";
+            throw new AppException(HttpStatus.CONFLICT, "Loại vé " + name + " vừa hết, vui lòng chọn lại");
+        }
+
         BigDecimal totalAmount = BigDecimal.ZERO;
         List<OrderItem> orderItems = new ArrayList<>();
 
