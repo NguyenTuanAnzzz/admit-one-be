@@ -1,3 +1,14 @@
-FROM eclipse-temurin:17
-COPY target/admit-one.jar /tmp/admit-one.jar
-CMD ["java", "-jar", "/tmp/admit-one.jar"]
+# Bước 1: build file jar ngay trong Docker (Railway không có sẵn thư mục target/)
+FROM maven:3.9-eclipse-temurin-17 AS build
+WORKDIR /app
+COPY pom.xml .
+RUN mvn -q dependency:go-offline
+COPY src ./src
+RUN mvn -q package -DskipTests
+
+# Bước 2: chỉ chép file jar sang image nhẹ để chạy
+FROM eclipse-temurin:17-jre
+WORKDIR /app
+COPY --from=build /app/target/admit-one.jar app.jar
+EXPOSE 8080
+CMD ["java", "-jar", "app.jar"]
