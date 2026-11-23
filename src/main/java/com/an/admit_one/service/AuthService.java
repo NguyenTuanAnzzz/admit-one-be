@@ -18,6 +18,7 @@ import com.an.admit_one.security.UserPrincipal;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
@@ -35,6 +36,13 @@ import java.util.Locale;
 
 @Service
 public class AuthService {
+
+    // FE và BE khác domain khi deploy thì cookie phải Secure + SameSite=None trình duyệt mới gửi kèm
+    @Value("${app.cookie.secure}")
+    private boolean cookieSecure;
+
+    @Value("${app.cookie.same-site}")
+    private String cookieSameSite;
 
     @Autowired
     private AuthRepository authRepository;
@@ -295,8 +303,8 @@ public class AuthService {
         ResponseCookie.ResponseCookieBuilder cookieBuilder = ResponseCookie
                 .from("refreshToken", refreshToken)
                 .httpOnly(true)
-                .secure(false) // true khi chạy HTTPS
-                .sameSite("Lax")
+                .secure(cookieSecure)
+                .sameSite(cookieSameSite)
                 .path("/api/auth/refresh");
 
         // Ghi nhớ đăng nhập: cookie sống 7 ngày. Không ghi nhớ: cookie phiên, đóng trình duyệt là mất
@@ -364,8 +372,8 @@ public class AuthService {
         ResponseCookie clearCookie = ResponseCookie
                 .from("refreshToken", "")
                 .httpOnly(true)
-                .secure(false) // true khi chạy HTTPS
-                .sameSite("Lax")
+                .secure(cookieSecure)
+                .sameSite(cookieSameSite)
                 .path("/api/auth/refresh")
                 .maxAge(0)
                 .build();
