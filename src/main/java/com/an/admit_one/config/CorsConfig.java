@@ -1,5 +1,6 @@
 package com.an.admit_one.config;
 
+import org.springframework.beans.factory.annotation.Value;   // ← THÊM
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
@@ -11,12 +12,15 @@ import java.util.List;
 @Configuration
 public class CorsConfig {
 
+    @Value("${app.fe-url}")                                   // ← THÊM
+    private String feUrl;                                     // ← THÊM
+
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
         configuration.setAllowedOrigins(
-                List.of("http://localhost:5173")
+                List.of("http://localhost:5173", feUrl)       // ← SỬA: thêm feUrl
         );
 
         configuration.setAllowedMethods(

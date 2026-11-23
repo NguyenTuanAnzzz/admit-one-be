@@ -1,0 +1,55 @@
+# Chạy cả 3 container (database, Redis, ứng dụng) bằng 1 lệnh:
+#   docker compose up -d --build     -> bật tất cả
+#   docker compose logs -f app       -> xem log ứng dụng
+#   docker compose down              -> tắt tất cả (dữ liệu vẫn còn trong volume)
+
+services:
+
+  # ---------- Container 1: PostgreSQL ----------
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: admit_one              # tự tạo database tên admit_one
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD}   # lấy từ file .env
+    volumes:
+      - pgdata:/var/lib/postgresql/data   # lưu dữ liệu vào volume để tắt/xoá container không mất
+    ports:
+      - "5433:5432"   # để DBeaver/IntelliJ trên Windows xem được DB qua localhost:5433
+      # (dùng 5433 để không trùng với Postgres cũ đang chiếm 5432)
+    healthcheck:      # Docker tự hỏi "Postgres sẵn sàng chưa?" mỗi 5 giây
+      test: ["CMD-SHELL", "pg_isready -U postgres -d admit_one"]
+      interval: 5s
+      retries: 10
+
+  # ---------- Container 2: Redis ----------
+  redis:
+    image: redis:7
+    volumes:
+      - redisdata:/data                   # Redis chép dữ liệu từ RAM xuống đây
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]  # Redis trả lời PONG là sẵn sàng
+      interval: 5s
+      retries: 10
+
+  # ---------- Container 3: ứng dụng admit-one ----------
+  app:
+    build: .                              # build image từ Dockerfile trong thư mục này
+    ports:
+      - "8080:8080"                       # trình duyệt / frontend gọi localhost:8080
+    env_file: .env                        # JWT_SECRET, DB_PASSWORD, MAIL_*, CLOUDINARY_URL, PAYOS_*
+    environment:
+      # Ghi đè "localhost" trong application.properties.
+      # Trong Compose, các container gọi nhau bằng TÊN service: "postgres", "redis"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/admit_one
+      SPRING_DATA_REDIS_HOST: redis
+    depends_on:                           # chỉ bật app khi Postgres và Redis đã sẵn sàng
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+# Khai báo các volume dùng ở trên
+volumes:
+  pgdata:
+  redisdata:
